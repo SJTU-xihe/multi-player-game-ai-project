@@ -11,6 +11,13 @@ from .ai_bots.rl_bot import RLBot
 from .ai_bots.behavior_tree_bot import BehaviorTreeBot
 from .ai_bots.snake_ai import SnakeAI, SmartSnakeAI
 
+# 尝试导入推箱子AI
+try:
+    from .ai_bots.sokoban_ai import SokobanAI, SimpleSokobanAI
+    sokoban_imported = True
+except ImportError:
+    sokoban_imported = False
+
 __all__ = [
     'BaseAgent',
     'HumanAgent',
@@ -21,4 +28,7 @@ __all__ = [
     'BehaviorTreeBot',
     'SnakeAI',
     'SmartSnakeAI'
-] 
+]
+
+if sokoban_imported:
+    __all__.extend(['SokobanAI', 'SimpleSokobanAI']) 

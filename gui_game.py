@@ -14,6 +14,15 @@ from agents import RandomBot, MinimaxBot, MCTSBot, HumanAgent, SnakeAI, SmartSna
 from agents.ai_bots.gomoku_minimax_bot import GomokuMinimaxBot
 import config
 
+# 尝试导入推箱子游戏
+try:
+    from games.sokoban import SokobanGame, SokobanEnv
+    from agents.ai_bots.sokoban_ai import SokobanAI, SimpleSokobanAI
+    SOKOBAN_AVAILABLE = True
+except ImportError:
+    SOKOBAN_AVAILABLE = False
+    print("推箱子游戏模块未找到，将跳过推箱子功能")
+
 # 颜色定义
 COLORS = {
     "WHITE": (255, 255, 255),
@@ -53,7 +62,7 @@ class MultiGameGUI:
         self.clock = pygame.time.Clock()
 
         # 游戏状态
-        self.current_game = "gomoku"  # "gomoku" 或 "snake"
+        self.current_game = "gomoku"  # "gomoku", "snake", 或 "sokoban"
         self.env = None
         self.human_agent = None
         self.ai_agent = None
@@ -118,44 +127,78 @@ class MultiGameGUI:
                 "text": "Snake",
                 "color": COLORS["LIGHT_GRAY"],
             },
-            # AI选择
+        }
+        
+        # 添加推箱子游戏按钮（如果可用）
+        if SOKOBAN_AVAILABLE:
+            buttons["sokoban_game"] = {
+                "rect": pygame.Rect(start_x, 130, button_width, button_height),
+                "text": "Sokoban",
+                "color": COLORS["LIGHT_GRAY"],
+            }
+            ai_start_y = 170
+        else:
+            ai_start_y = 150
+        
+        # AI选择按钮
+        ai_buttons = {
             "random_ai": {
-                "rect": pygame.Rect(start_x, 150, button_width, button_height),
+                "rect": pygame.Rect(start_x, ai_start_y, button_width, button_height),
                 "text": "Random AI",
                 "color": COLORS["YELLOW"],
             },
             "minimax_ai": {
-                "rect": pygame.Rect(start_x, 190, button_width, button_height),
+                "rect": pygame.Rect(start_x, ai_start_y + 40, button_width, button_height),
                 "text": "Minimax AI",
                 "color": COLORS["LIGHT_GRAY"],
             },
             "mcts_ai": {
-                "rect": pygame.Rect(start_x, 230, button_width, button_height),
+                "rect": pygame.Rect(start_x, ai_start_y + 80, button_width, button_height),
                 "text": "MCTS AI",
                 "color": COLORS["LIGHT_GRAY"],
             },
             "gomoku_ai": {
-                "rect": pygame.Rect(start_x, 270, button_width, button_height),
+                "rect": pygame.Rect(start_x, ai_start_y + 120, button_width, button_height),
                 "text": "Gomoku AI",
                 "color": COLORS["LIGHT_GRAY"],
             },
-            # 控制按钮
+        }
+        
+        # 添加推箱子专用AI按钮（如果可用）
+        if SOKOBAN_AVAILABLE:
+            ai_buttons["sokoban_ai"] = {
+                "rect": pygame.Rect(start_x, ai_start_y + 160, button_width, button_height),
+                "text": "Sokoban AI",
+                "color": COLORS["LIGHT_GRAY"],
+            }
+            control_start_y = ai_start_y + 200
+        else:
+            control_start_y = ai_start_y + 160
+        
+        # 合并AI按钮到主按钮字典
+        buttons.update(ai_buttons)
+        
+        # 控制按钮
+        control_buttons = {
             "new_game": {
-                "rect": pygame.Rect(start_x, 320, button_width, button_height),
+                "rect": pygame.Rect(start_x, control_start_y, button_width, button_height),
                 "text": "New Game",
                 "color": COLORS["GREEN"],
             },
             "pause": {
-                "rect": pygame.Rect(start_x, 360, button_width, button_height),
+                "rect": pygame.Rect(start_x, control_start_y + 40, button_width, button_height),
                 "text": "Pause",
                 "color": COLORS["ORANGE"],
             },
             "quit": {
-                "rect": pygame.Rect(start_x, 400, button_width, button_height),
+                "rect": pygame.Rect(start_x, control_start_y + 80, button_width, button_height),
                 "text": "Quit",
                 "color": COLORS["RED"],
             },
         }
+        
+        # 合并控制按钮到主按钮字典
+        buttons.update(control_buttons)
 
         return buttons
 

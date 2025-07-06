@@ -15,23 +15,25 @@ def main():
     print("=" * 50)
     print()
     print("请选择游戏模式:")
-    print("1. 多游戏GUI - 五子棋和贪吃蛇 (推荐)")
+    print("1. 多游戏GUI - 五子棋、贪吃蛇和推箱子 (推荐)")
     print("2. 贪吃蛇专用GUI - 更好的贪吃蛇体验")
-    print("3. 五子棋命令行版本")
-    print("4. 贪吃蛇命令行版本")
-    print("5. 运行测试")
-    print("6. 退出")
+    print("3. 推箱子专用GUI - 专业推箱子体验 🎯")
+    print("4. 五子棋命令行版本")
+    print("5. 贪吃蛇命令行版本")
+    print("6. 运行测试")
+    print("7. 退出")
     print()
 
     while True:
         try:
-            choice = input("请输入选择 (1-6): ").strip()
+            choice = input("请输入选择 (1-7): ").strip()
 
             if choice == "1":
                 print("\n🎯 启动多游戏图形界面...")
                 print("支持:")
                 print("- 五子棋: 鼠标点击落子")
                 print("- 贪吃蛇: 方向键/WASD控制")
+                print("- 推箱子: 方向键/WASD移动推箱子")
                 print("- 多种AI难度选择")
                 print("- 暂停/继续功能")
                 print()
@@ -59,6 +61,23 @@ def main():
                 break
 
             elif choice == "3":
+                print("\n📦 启动推箱子专用图形界面...")
+                print("特性:")
+                print("- 专为推箱子优化的界面")
+                print("- 双人对战模式 (竞争/合作)")
+                print("- Smart AI 和 Simple AI")
+                print("- 多个精心设计的关卡")
+                print("- 关卡编辑器功能")
+                print("- 提示和撤销功能")
+                print()
+
+                if os.path.exists("sokoban_gui.py"):
+                    subprocess.run([sys.executable, "sokoban_gui.py"])
+                else:
+                    print("❌ 推箱子GUI文件未找到")
+                break
+
+            elif choice == "4":
                 print("\n♟️  启动五子棋命令行版本...")
                 subprocess.run(
                     [
@@ -74,7 +93,7 @@ def main():
                 )
                 break
 
-            elif choice == "4":
+            elif choice == "5":
                 print("\n🐍 启动贪吃蛇命令行版本...")
                 subprocess.run(
                     [
@@ -90,17 +109,17 @@ def main():
                 )
                 break
 
-            elif choice == "5":
+            elif choice == "6":
                 print("\n🧪 运行项目测试...")
                 subprocess.run([sys.executable, "test_project.py"])
                 break
 
-            elif choice == "6":
+            elif choice == "7":
                 print("\n👋 再见！")
                 sys.exit(0)
 
             else:
-                print("❌ 无效选择，请输入 1-6")
+                print("❌ 无效选择，请输入 1-7")
 
         except KeyboardInterrupt:
             print("\n\n👋 再见！")
