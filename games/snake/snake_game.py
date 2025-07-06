@@ -4,6 +4,7 @@
 
 import numpy as np
 import random
+import time
 from typing import Dict, List, Tuple, Any, Optional
 from ..base_game import BaseGame
 import config
@@ -13,15 +14,7 @@ class SnakeGame(BaseGame):
     """双人贪吃蛇游戏"""
     
     def __init__(self, board_size: int = 20, initial_length: int = 3, food_count: int = 5):
-        game_config = {
-            'board_size': board_size,
-            'initial_length': initial_length,
-            'food_count': food_count,
-            'timeout': config.GAME_CONFIGS['snake']['timeout'],
-            'max_moves': config.GAME_CONFIGS['snake']['max_moves']
-        }
-        super().__init__(game_config)
-        
+        # 先设置实例属性
         self.board_size = board_size
         self.initial_length = initial_length
         self.food_count = food_count
@@ -38,8 +31,18 @@ class SnakeGame(BaseGame):
         # 游戏状态
         self.alive1 = True
         self.alive2 = True
+
+        # 准备游戏配置
+        game_config = {
+            'board_size': board_size,
+            'initial_length': initial_length,
+            'food_count': food_count,
+            'timeout': config.GAME_CONFIGS['snake']['timeout'],
+            'max_moves': config.GAME_CONFIGS['snake']['max_moves']
+        }
         
-        self.reset()
+        # 调用父类构造函数
+        super().__init__(game_config)
     
     def reset(self) -> Dict[str, Any]:
         """重置游戏状态"""
@@ -100,6 +103,14 @@ class SnakeGame(BaseGame):
         # 获取观察状态
         observation = self.get_state()
         
+        # 切换玩家（如果游戏没有结束）
+        if not done:
+            self.switch_player()
+        
+        # 增加移动计数
+        self.move_count += 1
+        self.last_move_time = time.time()
+        
         # 额外信息
         info = {
             'snake1_length': len(self.snake1),
@@ -119,19 +130,25 @@ class SnakeGame(BaseGame):
         if player is None:
             player = self.current_player
         
+        # 如果是游戏开始的前几步，允许任意方向移动
+        if self.move_count < 2:
+            return directions
+        
         # 过滤掉反向移动
         current_direction = self.direction1 if player == 1 else self.direction2
         valid_directions = []
         
         for direction in directions:
-            if direction != (-current_direction[0], -current_direction[1]):
+            # 检查是否是反向移动
+            reverse_direction = (-current_direction[0], -current_direction[1])
+            if direction != reverse_direction:
                 valid_directions.append(direction)
         
         return valid_directions
     
     def is_terminal(self) -> bool:
         """检查游戏是否结束"""
-        return not (self.alive1 or self.alive2)
+        return not (self.alive1 and self.alive2)
     
     def get_winner(self) -> Optional[int]:
         """获取获胜者"""
@@ -281,7 +298,7 @@ class SnakeGame(BaseGame):
     
     def _check_game_over(self) -> bool:
         """检查游戏是否结束"""
-        return not (self.alive1 or self.alive2)
+        return not (self.alive1 and self.alive2)
     
     def _calculate_reward(self) -> float:
         """计算奖励"""
@@ -296,4 +313,49 @@ class SnakeGame(BaseGame):
             elif not self.alive1:
                 return 1.0
         
-        return 0.0 
+        return 0.0
+    
+    def handle_invalid_action(self, action: Tuple[int, int]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
+        """
+        处理无效动作（如反向移动）
+        
+        Args:
+            action: 无效的动作
+            
+        Returns:
+            observation: 观察状态
+            reward: 奖励（负值表示失败）
+            done: 游戏是否结束
+            info: 额外信息
+        """
+        # 让当前玩家死亡
+        if self.current_player == 1:
+            self.alive1 = False
+        else:
+            self.alive2 = False
+        
+        # 检查游戏结束条件
+        done = self._check_game_over()
+        
+        # 计算奖励（当前玩家失败）
+        reward = -1.0
+        
+        # 获取观察状态
+        observation = self.get_state()
+        
+        # 增加移动计数
+        self.move_count += 1
+        self.last_move_time = time.time()
+        
+        # 额外信息
+        info = {
+            'snake1_length': len(self.snake1),
+            'snake2_length': len(self.snake2),
+            'food_count': len(self.foods),
+            'alive1': self.alive1,
+            'alive2': self.alive2,
+            'invalid_action': action,
+            'reason': 'Invalid move (reverse direction)'
+        }
+        
+        return observation, reward, done, info

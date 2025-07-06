@@ -24,7 +24,8 @@ class SnakeEnv(BaseEnv):
 
     def _get_observation(self):
         """获取观察"""
-        return self.game.board.copy()
+        state = self.game.get_state()
+        return state['board'].copy()
 
     def _get_action_mask(self):
         """获取动作掩码"""
@@ -47,11 +48,13 @@ class SnakeEnv(BaseEnv):
         """渲染环境"""
         if mode == 'human':
             self.game.render()
-        return self.game.board.copy()
+
+        return self.game.render()
 
     def get_board_state(self):
         """获取棋盘状态"""
-        return self.game.board.copy()
+        state = self.game.get_state()
+        return state['board'].copy()
 
     def get_snake_positions(self) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
         """获取蛇的位置"""

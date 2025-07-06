@@ -46,7 +46,13 @@ class BaseEnv(ABC):
         # 检查动作是否有效
         valid_actions = self.game.get_valid_actions(self.game.current_player)
         if action not in valid_actions:
-            return self._get_observation(), -1000, True, False, {'error': 'Invalid action'}
+            # 对于贪吃蛇游戏，无效动作（如反向移动）应该让当前玩家失败
+            if hasattr(self.game, 'handle_invalid_action'):
+                observation, reward, done, info = self.game.handle_invalid_action(action)
+                truncated = self.game.is_timeout()
+                return observation, reward, done, truncated, info
+            else:
+                return self._get_observation(), -1000, True, False, {'error': 'Invalid action'}
         
         # 执行动作
         observation, reward, done, info = self.game.step(action)
