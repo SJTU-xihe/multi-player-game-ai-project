@@ -128,6 +128,7 @@ class SnakeGUI:
         self.game_over = False
         self.winner = None
         self.thinking = False
+        # 确保游戏开始时玩家1（人类玩家）先走
         self.current_agent = self.human_agent
         self.last_update = time.time()
         self.paused = False
@@ -182,6 +183,11 @@ class SnakeGUI:
     
     def _handle_snake_input(self, key):
         """处理贪吃蛇键盘输入"""
+        # 只有在人类玩家回合才处理输入
+        if not isinstance(self.current_agent, HumanAgent):
+            print(f"Not human player turn, current agent: {type(self.current_agent)}")
+            return
+            
         key_to_action = {
             pygame.K_UP: (-1, 0),    # 上
             pygame.K_w: (-1, 0),
@@ -195,35 +201,47 @@ class SnakeGUI:
         
         if key in key_to_action:
             action = key_to_action[key]
+            print(f"Key pressed: {key}, action: {action}")
             self._make_move(action)
+        else:
+            print(f"Invalid key pressed: {key}")
     
     def _make_move(self, action):
         """执行移动"""
+        print(f"_make_move called with action: {action}")
+        print(f"Game over: {self.game_over}, Paused: {self.paused}")
+        print(f"Current player: {self.env.game.current_player}")
+        
         if self.game_over or self.paused:
+            print("Game is over or paused, returning")
             return
         
         try:
-            # 执行动作
+            print(f"Before step - Snake1: {self.env.game.snake1}, Snake2: {self.env.game.snake2}")
+            # 执行动作 - 现在返回5个值
             observation, reward, terminated, truncated, info = self.env.step(action)
+            print(f"After step - Snake1: {self.env.game.snake1}, Snake2: {self.env.game.snake2}")
+            print(f"Step result - reward: {reward}, terminated: {terminated}, truncated: {truncated}")
+            print(f"Current player after step: {self.env.game.current_player}")
             
             # 检查游戏是否结束
             if terminated or truncated:
                 self.game_over = True
                 self.winner = self.env.get_winner()
+                print(f"Game ended, winner: {self.winner}")
             else:
-                # 切换玩家
-                self._switch_player()
+                # 更新当前代理以匹配游戏中的当前玩家
+                if self.env.game.current_player == 1:
+                    self.current_agent = self.human_agent
+                else:
+                    self.current_agent = self.ai_agent
+                print(f"Updated current agent to: {type(self.current_agent)}")
         
         except Exception as e:
             print(f"Move execution failed: {e}")
-    
-    def _switch_player(self):
-        """切换玩家"""
-        if isinstance(self.current_agent, HumanAgent):
-            self.current_agent = self.ai_agent
-            self.thinking = True
-        else:
-            self.current_agent = self.human_agent
+            import traceback
+            traceback.print_exc()
+
     
     def update_game(self):
         """更新游戏状态"""
@@ -238,8 +256,14 @@ class SnakeGUI:
         
         self.last_update = current_time
         
-        # AI回合
-        if (not isinstance(self.current_agent, HumanAgent) and self.thinking):
+        # 确保当前代理与游戏中的当前玩家匹配
+        if self.env.game.current_player == 1:
+            self.current_agent = self.human_agent
+        else:
+            self.current_agent = self.ai_agent
+        
+        # 只有AI回合才自动移动
+        if not isinstance(self.current_agent, HumanAgent):
             try:
                 observation = self.env._get_observation()
                 action = self.current_agent.get_action(observation, self.env)
@@ -247,24 +271,10 @@ class SnakeGUI:
                 if action:
                     self._make_move(action)
                 
-                self.thinking = False
-                
             except Exception as e:
                 print(f"AI thinking failed: {e}")
-                self.thinking = False
         
-        # 人类玩家回合 - 贪吃蛇需要持续移动
-        elif isinstance(self.current_agent, HumanAgent) and not self.thinking:
-            # 获取当前方向并继续移动
-            current_direction = None
-            if self.env.game.current_player == 1:
-                current_direction = self.env.game.direction1
-            else:
-                current_direction = self.env.game.direction2
-            
-            # 直接使用当前方向
-            action = current_direction
-            self._make_move(action)
+        # 人类玩家需要手动输入才移动，这里不做自动移动
     
     def draw(self):
         """绘制游戏界面"""

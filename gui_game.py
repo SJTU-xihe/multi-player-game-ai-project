@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Dict, Any
 from games.gomoku import GomokuGame, GomokuEnv
 from games.snake import SnakeGame, SnakeEnv
 from agents import RandomBot, MinimaxBot, MCTSBot, HumanAgent, SnakeAI, SmartSnakeAI
+from agents.ai_bots.gomoku_minimax_bot import GomokuMinimaxBot
 import config
 
 # 颜色定义
@@ -133,19 +134,24 @@ class MultiGameGUI:
                 "text": "MCTS AI",
                 "color": COLORS["LIGHT_GRAY"],
             },
+            "gomoku_ai": {
+                "rect": pygame.Rect(start_x, 270, button_width, button_height),
+                "text": "Gomoku AI",
+                "color": COLORS["LIGHT_GRAY"],
+            },
             # 控制按钮
             "new_game": {
-                "rect": pygame.Rect(start_x, 290, button_width, button_height),
+                "rect": pygame.Rect(start_x, 320, button_width, button_height),
                 "text": "New Game",
                 "color": COLORS["GREEN"],
             },
             "pause": {
-                "rect": pygame.Rect(start_x, 330, button_width, button_height),
+                "rect": pygame.Rect(start_x, 360, button_width, button_height),
                 "text": "Pause",
                 "color": COLORS["ORANGE"],
             },
             "quit": {
-                "rect": pygame.Rect(start_x, 370, button_width, button_height),
+                "rect": pygame.Rect(start_x, 400, button_width, button_height),
                 "text": "Quit",
                 "color": COLORS["RED"],
             },
@@ -192,6 +198,14 @@ class MultiGameGUI:
                 )
             else:
                 self.ai_agent = SmartSnakeAI(name="Smart Snake AI", player_id=2)
+        elif self.selected_ai == "GomokuMinimaxBot":
+            if self.current_game == "gomoku":
+                self.ai_agent = GomokuMinimaxBot(
+                    name="Gomoku Expert AI", player_id=2, max_depth=4, timeout=3.0
+                )
+            else:
+                # 对于贪吃蛇游戏，降级到通用Minimax
+                self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
 
     def reset_game(self):
         """重置游戏"""
@@ -271,6 +285,8 @@ class MultiGameGUI:
                         self.selected_ai = "MinimaxBot"
                     elif button_name == "mcts_ai":
                         self.selected_ai = "MCTSBot"
+                    elif button_name == "gomoku_ai":
+                        self.selected_ai = "GomokuMinimaxBot"
 
                     self.buttons[button_name]["color"] = COLORS["YELLOW"]
                     self._create_ai_agent()
@@ -571,7 +587,7 @@ class MultiGameGUI:
                 "• Avoid collision",
             ]
 
-        start_y = 420
+        start_y = 450
         for i, instruction in enumerate(instructions):
             text = self.font_small.render(instruction, True, COLORS["DARK_GRAY"])
             self.screen.blit(
