@@ -10,12 +10,18 @@ import json
 import os
 from typing import Dict, List, Any
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
+
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 
 # 导入游戏和智能体
 from games.gomoku import GomokuEnv
 from games.snake import SnakeEnv
 from agents import RandomBot, MinimaxBot, MCTSBot, RLBot, BehaviorTreeBot
+from agents.ai_bots.gomoku_minimax_bot import GomokuMinimaxBot
 from utils.game_utils import evaluate_agents, tournament
 
 
@@ -27,6 +33,7 @@ def create_agent(agent_type: str, player_id: int, name: str = None, **kwargs):
     agent_map = {
         'random': RandomBot,
         'minimax': MinimaxBot,
+        'gomoku_minimax': GomokuMinimaxBot,  # 专门的五子棋AI
         'mcts': MCTSBot,
         'rl': RLBot,
         'behavior_tree': BehaviorTreeBot,
@@ -183,36 +190,38 @@ def analyze_performance(stats_list, agent_names):
 def plot_performance(stats_list, agent_names, save_path=None):
     """绘制性能图表"""
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('AI智能体性能比较', fontsize=16)
+    fig.suptitle('AI Performance Comparison', fontsize=16)  # 改为英文避免字体问题
     
     # 胜率比较
     win_rates = [stats['win_rate'] for stats in stats_list]
     axes[0, 0].bar(agent_names, win_rates)
-    axes[0, 0].set_title('胜率比较')
-    axes[0, 0].set_ylabel('胜率')
+    axes[0, 0].set_title('Win Rate Comparison')
+    axes[0, 0].set_ylabel('Win Rate')
     axes[0, 0].set_ylim(0, 1)
     
     # 思考时间比较
     avg_times = [stats['avg_move_time'] for stats in stats_list]
     axes[0, 1].bar(agent_names, avg_times)
-    axes[0, 1].set_title('平均思考时间')
-    axes[0, 1].set_ylabel('时间 (秒)')
+    axes[0, 1].set_title('Average Thinking Time')
+    axes[0, 1].set_ylabel('Time (seconds)')
     
     # 游戏长度比较
     avg_lengths = [stats['avg_game_length'] for stats in stats_list]
     axes[1, 0].bar(agent_names, avg_lengths)
-    axes[1, 0].set_title('平均游戏长度')
-    axes[1, 0].set_ylabel('回合数')
+    axes[1, 0].set_title('Average Game Length')
+    axes[1, 0].set_ylabel('Rounds')
     
     # 时间分布箱线图
     move_times_data = [stats['move_times'] for stats in stats_list]
-    axes[1, 1].boxplot(move_times_data, labels=agent_names)
-    axes[1, 1].set_title('思考时间分布')
-    axes[1, 1].set_ylabel('时间 (秒)')
+    axes[1, 1].boxplot(move_times_data, tick_labels=agent_names)  # 使用tick_labels而不是labels
+    axes[1, 1].set_title('Thinking Time Distribution')
+    axes[1, 1].set_ylabel('Time (seconds)')
     
     plt.tight_layout()
     
     if save_path:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"图表已保存到: {save_path}")
     
@@ -255,7 +264,7 @@ def main():
                        help='游戏类型')
     parser.add_argument('--agents', type=str, nargs='+',
                        default=['random', 'minimax'],
-                       choices=['random', 'minimax', 'mcts', 'rl', 'behavior_tree', 
+                       choices=['random', 'minimax', 'gomoku_minimax', 'mcts', 'rl', 'behavior_tree', 
                                'improved_random', 'rule_based', 'greedy_snake', 'search_based'],
                        help='要评估的智能体类型')
     parser.add_argument('--games', type=int, default=100,
@@ -272,8 +281,10 @@ def main():
                        help='获胜长度（五子棋）')
     
     # AI参数
-    parser.add_argument('--minimax-depth', type=int, default=3,
-                       help='Minimax搜索深度')
+    parser.add_argument('--minimax-depth', type=int, default=2,
+                       help='Minimax搜索深度（默认2以加快测试速度）')
+    parser.add_argument('--minimax-timeout', type=float, default=1.0,
+                       help='Minimax每步最大思考时间（秒）')
     parser.add_argument('--mcts-simulations', type=int, default=1000,
                        help='MCTS模拟次数')
     
@@ -307,7 +318,8 @@ def main():
     
     # 准备AI参数
     agent_kwargs = {
-        'minimax': {'max_depth': args.minimax_depth},
+        'minimax': {'max_depth': args.minimax_depth, 'timeout': args.minimax_timeout},
+        'gomoku_minimax': {'max_depth': min(2, args.minimax_depth), 'timeout': min(2.0, args.minimax_timeout)},  # 五子棋AI使用更快的设置
         'mcts': {'simulation_count': args.mcts_simulations}
     }
     

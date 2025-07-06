@@ -45,7 +45,7 @@ def create_env(game_type: str, **kwargs) -> Any:
         'snake': SnakeEnv,
         # 'mahjong': MahjongEnv,  # 待实现
     }
-    
+
     if game_type not in env_map:
         raise ValueError(f"不支持的游戏类型: {game_type}")
     
