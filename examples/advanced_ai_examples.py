@@ -121,8 +121,9 @@ class QLearningBot(BaseAgent):
                 current_state = None
             
             # 执行动作
-            next_obs, reward, done, info = env.step(action)
+            next_obs, reward, terminated, truncated, info = env.step(action)
             next_state = self.observation_to_state(next_obs)
+            done = terminated or truncated
             
             # 更新Q值（只有当前玩家）
             if current_state is not None:
@@ -219,7 +220,11 @@ class LLMBot(BaseAgent):
     def observation_to_text(self, observation: Any, env: Any) -> str:
         """将游戏状态转换为文字描述"""
         if hasattr(env, 'board_size'):  # 五子棋类游戏
-            board = observation['board']
+            # 处理不同格式的观察值
+            if isinstance(observation, dict):
+                board = observation['board']
+            else:
+                board = observation
             description = f"棋盘大小: {board.shape[0]}x{board.shape[1]}\n"
             
             # 描述棋盘状态
@@ -433,7 +438,8 @@ def demo_q_learning():
                 else:
                     action = random_bot.get_action(observation, env)
                 
-                observation, _, done, _ = env.step(action)
+                observation, reward, terminated, truncated, done = env.step(action)
+                done = terminated or truncated
                 if done:
                     break
             
@@ -471,7 +477,8 @@ def demo_llm_bot():
             print(f"LLM选择的动作: {action}")
             
             if action:
-                observation, _, done, info = env.step(action)
+                observation, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
                 env.render()
                 if done:
                     break

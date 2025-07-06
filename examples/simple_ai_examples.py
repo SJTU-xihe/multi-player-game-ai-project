@@ -62,7 +62,13 @@ class RuleBasedGomokuBot(BaseAgent):
     def get_action(self, observation: Any, env: Any) -> Tuple[int, int]:
         """基于规则的决策"""
         valid_actions = env.get_valid_actions()
-        board = observation['board']
+        
+        # 处理不同格式的观察值
+        if isinstance(observation, dict):
+            board = observation['board']
+        else:
+            # 假设observation直接是棋盘数组
+            board = observation
         
         # 规则1: 如果能获胜，立即获胜
         winning_move = self._find_winning_move(valid_actions, board, self.player_id)
