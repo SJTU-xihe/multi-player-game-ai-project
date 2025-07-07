@@ -16,6 +16,7 @@ from games.snake import SnakeEnv
 from agents import (
     HumanAgent, RandomBot, MinimaxBot, MCTSBot, RLBot, BehaviorTreeBot
 )
+from agents.ai_bots.search_ai import SearchAI
 
 
 def create_agent(agent_type: str, player_id: int, name: str = None) -> Any:
@@ -23,19 +24,34 @@ def create_agent(agent_type: str, player_id: int, name: str = None) -> Any:
     if name is None:
         name = f"{agent_type}_{player_id}"
     
+    # 处理搜索AI的特殊参数
+    if agent_type.startswith('search_'):
+        algorithm = agent_type.split('_')[1] if '_' in agent_type else 'bfs'
+        return SearchAI(name=name, player_id=player_id, search_algorithm=algorithm)
+    
     agent_map = {
         'human': HumanAgent,
         'random': RandomBot,
         'minimax': MinimaxBot,
         'mcts': MCTSBot,
         'rl': RLBot,
-        'behavior_tree': BehaviorTreeBot
+        'behavior_tree': BehaviorTreeBot,
+        'search': SearchAI,  # 默认BFS搜索
+        'search_bfs': lambda name, player_id: SearchAI(name=name, player_id=player_id, search_algorithm='bfs'),
+        'search_dfs': lambda name, player_id: SearchAI(name=name, player_id=player_id, search_algorithm='dfs'),
+        'search_astar': lambda name, player_id: SearchAI(name=name, player_id=player_id, search_algorithm='astar'),
     }
     
     if agent_type not in agent_map:
         raise ValueError(f"不支持的智能体类型: {agent_type}")
     
-    return agent_map[agent_type](name=name, player_id=player_id)
+    agent_class = agent_map[agent_type]
+    if callable(agent_class) and not isinstance(agent_class, type):
+        # 如果是lambda函数，直接调用
+        return agent_class(name, player_id)
+    else:
+        # 如果是类，实例化
+        return agent_class(name=name, player_id=player_id)
 
 
 def create_env(game_type: str, **kwargs) -> Any:
@@ -200,10 +216,12 @@ def main():
                        choices=['gomoku', 'snake', 'mahjong'],
                        help='游戏类型')
     parser.add_argument('--player1', type=str, default='human',
-                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree'],
+                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree', 
+                               'search', 'search_bfs', 'search_dfs', 'search_astar'],
                        help='玩家1类型')
     parser.add_argument('--player2', type=str, default='random',
-                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree'],
+                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree',
+                               'search', 'search_bfs', 'search_dfs', 'search_astar'],
                        help='玩家2类型')
     parser.add_argument('--name1', type=str, help='玩家1名称')
     parser.add_argument('--name2', type=str, help='玩家2名称')

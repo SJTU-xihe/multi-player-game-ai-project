@@ -20,13 +20,14 @@ def main():
     print("3. 推箱子专用GUI - 专业推箱子体验 🎯")
     print("4. 五子棋命令行版本")
     print("5. 贪吃蛇命令行版本")
-    print("6. 运行测试")
-    print("7. 退出")
+    print("6. 搜索算法AI演示 🔍")
+    print("7. 运行测试")
+    print("8. 退出")
     print()
 
     while True:
         try:
-            choice = input("请输入选择 (1-7): ").strip()
+            choice = input("请输入选择 (1-8): ").strip()
 
             if choice == "1":
                 print("\n🎯 启动多游戏图形界面...")
@@ -110,16 +111,32 @@ def main():
                 break
 
             elif choice == "6":
+                print("\n🔍 搜索算法AI演示...")
+                print("演示不同搜索算法的表现:")
+                print("- BFS (广度优先搜索)")
+                print("- DFS (深度优先搜索)")  
+                print("- A* (启发式搜索)")
+                print()
+                
+                if os.path.exists("test_search_ai.py"):
+                    subprocess.run([sys.executable, "test_search_ai.py"])
+                elif os.path.exists("examples/search_ai_examples.py"):
+                    subprocess.run([sys.executable, "examples/search_ai_examples.py"])
+                else:
+                    print("❌ 搜索AI演示文件未找到")
+                break
+
+            elif choice == "7":
                 print("\n🧪 运行项目测试...")
                 subprocess.run([sys.executable, "test_project.py"])
                 break
 
-            elif choice == "7":
+            elif choice == "8":
                 print("\n👋 再见！")
                 sys.exit(0)
 
             else:
-                print("❌ 无效选择，请输入 1-7")
+                print("❌ 无效选择，请输入 1-8")
 
         except KeyboardInterrupt:
             print("\n\n👋 再见！")

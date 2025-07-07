@@ -89,8 +89,10 @@ python start_games.py
 - 🖱️ **五子棋**: 鼠标点击落子
 - ⌨️ **贪吃蛇**: 方向键/WASD控制
 - 🎮 **游戏切换**: 点击按钮切换游戏类型
-- 🤖 **AI选择**: 随机AI、MinimaxAI、MCTS AI
+- 🤖 **AI选择**: 随机AI、MinimaxAI、MCTS AI、🔍**搜索AI**(BFS/DFS/A*)
 - ⏸️ **暂停功能**: 随时暂停/继续游戏
+
+> 🔍 **新增搜索AI**: 在AI选择区域新增了"Search BFS"、"Search DFS"、"Search A*"选项，体验不同搜索算法的游戏策略！详见 [GUI搜索AI更新说明](GUI_SEARCH_AI_UPDATE.md)
 
 ### 2. 贪吃蛇专用GUI (`snake_gui.py`)
 **特点**: 专为贪吃蛇优化，更流畅的体验
@@ -144,6 +146,11 @@ python main.py --game snake --player1 human --player2 snake_ai
 
 # AI对战观看
 python main.py --game gomoku --player1 mcts --player2 minimax
+
+# 🔍 新增：搜索算法AI对战
+python main.py --game snake --player1 search_bfs --player2 search_astar
+python main.py --game gomoku --player1 search_astar --player2 random
+python main.py --game snake --player1 search_dfs --player2 random --no-render
 ```
 
 ### 可用智能体
@@ -153,6 +160,12 @@ python main.py --game gomoku --player1 mcts --player2 minimax
 - `mcts`: MCTS算法AI
 - `snake_ai`: 贪吃蛇基础AI
 - `smart_snake_ai`: 贪吃蛇智能AI
+- `search`: 搜索算法AI (默认BFS)
+- `search_bfs`: 广度优先搜索AI
+- `search_dfs`: 深度优先搜索AI
+- `search_astar`: A*搜索算法AI
+
+> 🔍 **新增搜索算法AI**: 实现了BFS、DFS、A*等经典搜索算法，支持贪吃蛇、推箱子、五子棋等多种游戏。详见 [搜索AI使用指南](SEARCH_AI_README.md)
 
 ## 📦 依赖说明
 

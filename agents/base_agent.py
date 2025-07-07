@@ -24,6 +24,11 @@ class BaseAgent(ABC):
         self.total_moves = 0
         self.total_time = 0.0
     
+    def update_stats(self, result, time_taken):
+        """更新智能体统计信息"""
+        self.total_moves += 1
+        self.total_time += time_taken
+    
     def get_info(self):
         """获取智能体信息"""
         return {
