@@ -91,6 +91,7 @@ class SokobanEnv(BaseEnv):
     
     def step(self, action) -> Tuple[Dict[str, Any], float, bool, bool, Dict[str, Any]]:
         """执行动作"""
+        
         # 转换动作格式
         if isinstance(action, int):
             action_names = ['UP', 'DOWN', 'LEFT', 'RIGHT']
@@ -105,13 +106,13 @@ class SokobanEnv(BaseEnv):
         
         # 检查动作是否有效
         valid_actions = self.game.get_valid_actions()
+        
         if action not in valid_actions:
             # 无效动作的惩罚
             observation = self._get_observation()
             info = self._get_info()
             info['invalid_action'] = True
             return observation, -0.5, False, False, info
-        
         # 执行动作
         _, reward, terminated, game_info = self.game.step(action)
         
@@ -170,7 +171,7 @@ class SokobanEnv(BaseEnv):
             'move_count': state['move_count'],
             'is_terminal': state['is_terminal'],
             'winner': state['winner'],
-            'valid_actions': state['valid_actions'],
+            'valid_actions': self.game.get_valid_actions(),  # 直接调用而不是从状态获取
             'invalid_action': False
         }
     

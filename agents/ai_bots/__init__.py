@@ -9,6 +9,8 @@ from .mcts_bot import MCTSBot
 from .rl_bot import RLBot
 from .behavior_tree_bot import BehaviorTreeBot
 from .search_ai import SearchAI
+from .sokoban_ai import SokobanAI, SimpleSokobanAI
+from .llm_bot import LLMBot, AdvancedSokobanAI
 
 __all__ = [
     'RandomBot',
@@ -17,5 +19,9 @@ __all__ = [
     'MCTSBot',
     'RLBot',
     'BehaviorTreeBot',
-    'SearchAI'
+    'SearchAI',
+    'SokobanAI',
+    'SimpleSokobanAI',
+    'LLMBot',
+    'AdvancedSokobanAI'
 ] 

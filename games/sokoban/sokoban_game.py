@@ -151,6 +151,11 @@ class SokobanGame(BaseGame):
                     else:
                         self.player2_pos = (row, col)
                         self.board[row][col] = self.PLAYER2
+                        player_count += 1
+                elif char == '&':  # 玩家2位置
+                    self.player2_pos = (row, col)
+                    self.board[row][col] = self.PLAYER2
+                    player_count += 1
                 elif char == self.PLAYER1_ON_TARGET:
                     self.player1_pos = (row, col)
                     self.targets.add((row, col))
@@ -167,6 +172,10 @@ class SokobanGame(BaseGame):
                 else:
                     self.board[row][col] = self.PLAYER2
         
+        # 强制检查和修复玩家位置冲突
+        if self.player1_pos == self.player2_pos:
+            self._fix_initial_player_positions()
+        
         # 重置分数和统计
         self.player1_score = 0
         self.player2_score = 0
@@ -179,9 +188,13 @@ class SokobanGame(BaseGame):
         """找到一个空的位置放置第二个玩家"""
         for row in range(self.height):
             for col in range(self.width):
-                if (self.board[row][col] == self.FLOOR or 
-                    self.board[row][col] == self.TARGET):
-                    return (row, col)
+                pos = (row, col)
+                # 确保这个位置不是玩家1的位置，也不是墙壁或箱子
+                if (pos != self.player1_pos and 
+                    (self.board[row][col] == self.FLOOR or 
+                     self.board[row][col] == self.TARGET) and
+                    pos not in self.boxes):
+                    return pos
         return None
     
     def step(self, action: str) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
@@ -275,6 +288,10 @@ class SokobanGame(BaseGame):
         # 如果目标位置是另一个玩家，不能移动
         other_player_pos = self.player2_pos if player == 1 else self.player1_pos
         if other_player_pos and (new_row, new_col) == other_player_pos:
+            return False, 'none'
+        
+        # 特殊处理：如果两个玩家在同一位置，允许其中一个移动
+        if self.player1_pos == self.player2_pos and current_pos == (new_row, new_col):
             return False, 'none'
         
         # 如果目标位置有箱子，尝试推箱子
@@ -376,9 +393,15 @@ class SokobanGame(BaseGame):
             else:
                 self.board[row][col] = self.BOX
         
-        # 放置玩家
+        # 放置玩家（确保位置不冲突）
         if self.player1_pos:
             row, col = self.player1_pos
+            # 检查是否与玩家2位置冲突
+            if self.player2_pos and self.player1_pos == self.player2_pos:
+                # 强制分离玩家位置
+                self._fix_player_position_conflict()
+                return
+            
             if (row, col) in self.targets:
                 self.board[row][col] = self.PLAYER1_ON_TARGET
             else:
@@ -439,7 +462,9 @@ class SokobanGame(BaseGame):
             
             # 检查是否是另一个玩家
             other_player_pos = self.player2_pos if current_player == 1 else self.player1_pos
-            if other_player_pos and (new_row, new_col) == other_player_pos:
+            # 特殊处理：如果两个玩家在同一位置，只有移动方向不是对方才被阻挡
+            if (other_player_pos and (new_row, new_col) == other_player_pos and 
+                current_pos != other_player_pos):  # 只有当两个玩家不在同一位置时才检查碰撞
                 continue
             
             # 如果是箱子，检查是否能推
@@ -516,8 +541,8 @@ class SokobanGame(BaseGame):
             'level_id': self.level_id,
             'is_terminal': self.is_terminal(),
             'winner': self.get_winner(),
-            'move_count': self.move_count,
-            'valid_actions': self.get_valid_actions()
+            'move_count': self.move_count
+            # 注意：移除了valid_actions以避免递归调用
         }
     
     def _get_board_as_numbers(self) -> List[List[int]]:
@@ -595,3 +620,62 @@ class SokobanGame(BaseGame):
     def get_observation_space(self) -> Tuple[int, int]:
         """获取观察空间"""
         return (self.height, self.width)
+    
+    def _fix_player_position_conflict(self):
+        """修复玩家位置冲突"""
+        if not self.player1_pos or not self.player2_pos:
+            return
+        
+        if self.player1_pos != self.player2_pos:
+            return
+        
+        # 为玩家2找一个新位置
+        new_pos = None
+        for row in range(self.height):
+            for col in range(self.width):
+                pos = (row, col)
+                if (pos != self.player1_pos and 
+                    (self.board[row][col] == self.FLOOR or 
+                     self.board[row][col] == self.TARGET) and
+                    pos not in self.boxes):
+                    new_pos = pos
+                    break
+            if new_pos:
+                break
+        
+        if new_pos:
+            self.player2_pos = new_pos
+        
+        # 重新更新显示
+        self._update_board_display()
+    
+    def _fix_initial_player_positions(self):
+        """修复初始玩家位置冲突"""
+        if not self.player1_pos:
+            return
+        
+        # 为玩家2找一个新的位置
+        original_p2_pos = self.player2_pos
+        best_positions = []
+        
+        for row in range(self.height):
+            for col in range(self.width):
+                pos = (row, col)
+                # 确保这个位置不是玩家1的位置，也不是墙壁或箱子
+                if (pos != self.player1_pos and 
+                    (self.board[row][col] == self.FLOOR or 
+                     self.board[row][col] == self.TARGET) and
+                    pos not in self.boxes):
+                    # 计算与玩家1的距离，优先选择较远的位置
+                    distance = abs(row - self.player1_pos[0]) + abs(col - self.player1_pos[1])
+                    best_positions.append((distance, pos))
+        
+        if best_positions:
+            # 按距离排序，选择距离最远的位置
+            best_positions.sort(reverse=True)
+            new_pos = best_positions[0][1]
+            
+            self.player2_pos = new_pos
+            
+            # 更新显示
+            self._update_board_display()

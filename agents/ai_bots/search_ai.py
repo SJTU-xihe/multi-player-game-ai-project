@@ -114,7 +114,7 @@ class SearchAI(BaseAgent):
         return self._safe_action_snake(my_head, my_snake, enemy_snake, env, valid_actions)
     
     def _sokoban_search_action(self, observation, env, valid_actions):
-        """推箱子专用搜索策略"""
+        """推箱子专用搜索策略 - 大幅增强"""
         game = env.game
         
         # 获取玩家位置
@@ -127,19 +127,271 @@ class SearchAI(BaseAgent):
         if not player_pos:
             return random.choice(valid_actions)
         
-        # 寻找最近的箱子和目标的组合
-        boxes = self._find_boxes(observation)
-        targets = self._find_targets(observation)
+        # 寻找所有箱子和目标
+        boxes = self._find_sokoban_boxes(observation)
+        targets = self._find_sokoban_targets(observation)
         
         if not boxes or not targets:
             return random.choice(valid_actions)
         
-        # 使用搜索算法找到最优推箱路径
-        best_action = self._search_sokoban_solution(
+        # 使用多层搜索策略
+        best_action = self._multi_layer_sokoban_search(
             player_pos, boxes, targets, observation, env, valid_actions
         )
         
         return best_action if best_action else random.choice(valid_actions)
+    
+    def _multi_layer_sokoban_search(self, player_pos, boxes, targets, observation, env, valid_actions):
+        """多层推箱子搜索算法"""
+        
+        # 第1层：直接完成检查
+        immediate_action = self._check_immediate_completion(player_pos, boxes, targets, observation)
+        if immediate_action and immediate_action in valid_actions:
+            return immediate_action
+        
+        # 第2层：最优推箱子策略
+        push_action = self._optimal_push_strategy(player_pos, boxes, targets, observation, valid_actions)
+        if push_action:
+            return push_action
+        
+        # 第3层：战略定位搜索
+        positioning_action = self._strategic_positioning_search(player_pos, boxes, targets, observation, valid_actions)
+        if positioning_action:
+            return positioning_action
+        
+        # 第4层：A*路径搜索到最有价值的位置
+        pathfinding_action = self._astar_to_valuable_position(player_pos, boxes, targets, observation, valid_actions)
+        if pathfinding_action:
+            return pathfinding_action
+        
+        return None
+    
+    def _check_immediate_completion(self, player_pos, boxes, targets, observation):
+        """检查是否可以立即完成一个箱子"""
+        directions = {
+            'UP': (-1, 0),
+            'DOWN': (1, 0),
+            'LEFT': (0, -1),
+            'RIGHT': (0, 1)
+        }
+        
+        for action, (dr, dc) in directions.items():
+            adjacent_pos = (player_pos[0] + dr, player_pos[1] + dc)
+            
+            # 如果相邻位置有箱子
+            if adjacent_pos in boxes:
+                box_new_pos = (adjacent_pos[0] + dr, adjacent_pos[1] + dc)
+                
+                # 检查推动后是否在目标上
+                if (box_new_pos in targets and 
+                    self._is_valid_sokoban_position(box_new_pos, observation, boxes)):
+                    return action
+        
+        return None
+    
+    def _optimal_push_strategy(self, player_pos, boxes, targets, observation, valid_actions):
+        """最优推箱子策略"""
+        directions = {
+            'UP': (-1, 0),
+            'DOWN': (1, 0),
+            'LEFT': (0, -1),
+            'RIGHT': (0, 1)
+        }
+        
+        best_action = None
+        best_improvement = 0
+        
+        for action in valid_actions:
+            if action not in directions:
+                continue
+                
+            dr, dc = directions[action]
+            adjacent_pos = (player_pos[0] + dr, player_pos[1] + dc)
+            
+            # 如果可以推箱子
+            if adjacent_pos in boxes:
+                box_new_pos = (adjacent_pos[0] + dr, adjacent_pos[1] + dc)
+                
+                if self._is_valid_sokoban_position(box_new_pos, observation, boxes):
+                    # 计算推动的价值改善
+                    improvement = self._calculate_push_improvement(
+                        adjacent_pos, box_new_pos, boxes, targets
+                    )
+                    
+                    if improvement > best_improvement:
+                        best_improvement = improvement
+                        best_action = action
+        
+        return best_action if best_improvement > 0 else None
+    
+    def _strategic_positioning_search(self, player_pos, boxes, targets, observation, valid_actions):
+        """战略定位搜索 - 找到可以推动箱子的最佳位置"""
+        directions = {
+            'UP': (-1, 0),
+            'DOWN': (1, 0),
+            'LEFT': (0, -1),
+            'RIGHT': (0, 1)
+        }
+        
+        # 找到所有可推动的箱子位置
+        valuable_positions = []
+        incomplete_boxes = [box for box in boxes if box not in targets]
+        
+        for box in incomplete_boxes:
+            for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                push_from_pos = (box[0] - dr, box[1] - dc)  # 玩家推动位置
+                push_to_pos = (box[0] + dr, box[1] + dc)    # 箱子目标位置
+                
+                # 检查推动的有效性和价值
+                if (self._is_valid_sokoban_position(push_from_pos, observation, boxes) and
+                    self._is_valid_sokoban_position(push_to_pos, observation, boxes)):
+                    
+                    value = self._evaluate_push_position_value(box, push_to_pos, targets, boxes)
+                    if value > 0:
+                        valuable_positions.append((push_from_pos, value))
+        
+        if not valuable_positions:
+            return None
+        
+        # 选择最有价值且最近的位置
+        best_position = max(valuable_positions, key=lambda x: x[1] - abs(x[0][0] - player_pos[0]) - abs(x[0][1] - player_pos[1]))
+        target_position = best_position[0]
+        
+        # 朝目标位置移动
+        best_action = None
+        min_distance = float('inf')
+        
+        for action in valid_actions:
+            if action in directions:
+                dr, dc = directions[action]
+                new_pos = (player_pos[0] + dr, player_pos[1] + dc)
+                distance = abs(new_pos[0] - target_position[0]) + abs(new_pos[1] - target_position[1])
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    best_action = action
+        
+        return best_action
+    
+    def _astar_to_valuable_position(self, player_pos, boxes, targets, observation, valid_actions):
+        """A*搜索到最有价值的位置"""
+        # 简化版A*搜索，找到最近的有价值箱子
+        incomplete_boxes = [box for box in boxes if box not in targets]
+        if not incomplete_boxes:
+            return None
+        
+        # 找到最有价值的箱子（最接近目标的箱子）
+        most_valuable_box = min(incomplete_boxes, 
+                               key=lambda box: min(abs(box[0] - t[0]) + abs(box[1] - t[1]) for t in targets))
+        
+        # 朝最有价值的箱子移动
+        directions = {
+            'UP': (-1, 0),
+            'DOWN': (1, 0),
+            'LEFT': (0, -1),
+            'RIGHT': (0, 1)
+        }
+        
+        best_action = None
+        min_distance = float('inf')
+        
+        for action in valid_actions:
+            if action in directions:
+                dr, dc = directions[action]
+                new_pos = (player_pos[0] + dr, player_pos[1] + dc)
+                distance = abs(new_pos[0] - most_valuable_box[0]) + abs(new_pos[1] - most_valuable_box[1])
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    best_action = action
+        
+        return best_action
+    
+    def _calculate_push_improvement(self, old_box_pos, new_box_pos, boxes, targets):
+        """计算推动箱子的改善程度"""
+        available_targets = [t for t in targets if t not in boxes]
+        if not available_targets:
+            return 0
+        
+        # 计算推动前后到最近目标的距离
+        old_min_dist = min(abs(old_box_pos[0] - t[0]) + abs(old_box_pos[1] - t[1]) for t in available_targets)
+        new_min_dist = min(abs(new_box_pos[0] - t[0]) + abs(new_box_pos[1] - t[1]) for t in available_targets)
+        
+        # 如果直接推到目标
+        if new_box_pos in targets:
+            return 1000
+        
+        # 返回距离改善
+        return max(0, old_min_dist - new_min_dist)
+    
+    def _evaluate_push_position_value(self, box_pos, push_to_pos, targets, boxes):
+        """评估推动位置的价值"""
+        available_targets = [t for t in targets if t not in boxes]
+        if not available_targets:
+            return 0
+        
+        # 如果直接推到目标
+        if push_to_pos in targets:
+            return 1000
+        
+        # 计算推动后到最近目标的距离改善
+        current_min_dist = min(abs(box_pos[0] - t[0]) + abs(box_pos[1] - t[1]) for t in available_targets)
+        new_min_dist = min(abs(push_to_pos[0] - t[0]) + abs(push_to_pos[1] - t[1]) for t in available_targets)
+        
+        improvement = current_min_dist - new_min_dist
+        return max(0, improvement * 10)  # 放大改善价值
+    
+    def _find_sokoban_boxes(self, observation):
+        """找到推箱子中的所有箱子"""
+        boxes = []
+        if isinstance(observation, dict) and 'board' in observation:
+            board = observation['board']
+            for row in range(board.shape[0]):
+                for col in range(board.shape[1]):
+                    if board[row, col] in [3, 4]:  # 箱子或箱子在目标上
+                        boxes.append((row, col))
+        elif isinstance(observation, np.ndarray):
+            positions = np.where((observation == 3) | (observation == 4))
+            boxes = [(positions[0][i], positions[1][i]) for i in range(len(positions[0]))]
+        return boxes
+    
+    def _find_sokoban_targets(self, observation):
+        """找到推箱子中的所有目标"""
+        targets = []
+        if isinstance(observation, dict) and 'board' in observation:
+            board = observation['board']
+            for row in range(board.shape[0]):
+                for col in range(board.shape[1]):
+                    if board[row, col] in [2, 4, 7, 8]:  # 目标点
+                        targets.append((row, col))
+        elif isinstance(observation, np.ndarray):
+            positions = np.where((observation == 2) | (observation == 4) | (observation == 7) | (observation == 8))
+            targets = [(positions[0][i], positions[1][i]) for i in range(len(positions[0]))]
+        return targets
+    
+    def _is_valid_sokoban_position(self, pos, observation, boxes):
+        """检查推箱子位置是否有效"""
+        row, col = pos
+        
+        # 获取棋盘
+        if isinstance(observation, dict) and 'board' in observation:
+            board = observation['board']
+        else:
+            board = observation
+        
+        # 检查边界
+        if row < 0 or row >= board.shape[0] or col < 0 or col >= board.shape[1]:
+            return False
+        
+        # 检查是否是墙壁
+        if board[row, col] == 1:
+            return False
+        
+        # 检查是否有其他箱子
+        if pos in boxes:
+            return False
+        
+        return True
     
     def _gomoku_search_action(self, observation, env, valid_actions):
         """五子棋专用搜索策略"""
@@ -402,3 +654,117 @@ class SearchAI(BaseAgent):
             'description': f'搜索算法AI ({self.search_algorithm.upper()})'
         })
         return info
+    
+    def _enhanced_sokoban_heuristic(self, player_pos, boxes, targets, observation):
+        """增强的推箱子启发式函数"""
+        total_score = 0
+        
+        # 基础距离得分
+        for box in boxes:
+            if box not in targets:
+                min_dist_to_target = min(abs(box[0] - t[0]) + abs(box[1] - t[1]) for t in targets)
+                total_score += min_dist_to_target
+        
+        # 玩家到最近未完成箱子的距离
+        incomplete_boxes = [box for box in boxes if box not in targets]
+        if incomplete_boxes:
+            min_player_to_box = min(abs(player_pos[0] - box[0]) + abs(player_pos[1] - box[1]) for box in incomplete_boxes)
+            total_score += min_player_to_box * 0.1
+        
+        # 死锁惩罚
+        deadlock_penalty = self._calculate_deadlock_penalty(boxes, targets, observation)
+        total_score += deadlock_penalty
+        
+        # 聚集惩罚（箱子太聚集会难以操作）
+        clustering_penalty = self._calculate_clustering_penalty(boxes, targets)
+        total_score += clustering_penalty
+        
+        return total_score
+    
+    def _calculate_deadlock_penalty(self, boxes, targets, observation):
+        """计算死锁惩罚"""
+        penalty = 0
+        board = observation['board'] if isinstance(observation, dict) else observation
+        
+        for box in boxes:
+            if box not in targets:
+                # 检查角落死锁
+                if self._is_corner_position(box, board):
+                    penalty += 1000
+                
+                # 检查墙边死锁
+                if self._is_wall_edge_deadlock(box, board, targets):
+                    penalty += 500
+        
+        return penalty
+    
+    def _is_corner_position(self, pos, board):
+        """检查是否在角落位置"""
+        row, col = pos
+        corners = 0
+        
+        # 检查四个方向的墙
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for dr, dc in directions:
+            new_row, new_col = row + dr, col + dc
+            if (new_row < 0 or new_row >= board.shape[0] or 
+                new_col < 0 or new_col >= board.shape[1] or 
+                board[new_row, new_col] == 1):
+                corners += 1
+        
+        return corners >= 2
+    
+    def _is_wall_edge_deadlock(self, pos, board, targets):
+        """检查墙边死锁"""
+        row, col = pos
+        
+        # 如果贴着墙，检查沿墙方向是否有目标
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        
+        for dr, dc in directions:
+            wall_row, wall_col = row + dr, col + dc
+            
+            # 如果这个方向是墙
+            if (wall_row < 0 or wall_row >= board.shape[0] or 
+                wall_col < 0 or wall_col >= board.shape[1] or 
+                board[wall_row, wall_col] == 1):
+                
+                # 检查沿墙方向是否有目标
+                perpendicular_dirs = [(dc, dr), (-dc, -dr)] if dr == 0 else [(dr, dc), (-dr, -dc)]
+                has_target_along_wall = False
+                
+                for perp_dr, perp_dc in perpendicular_dirs:
+                    for distance in range(1, min(board.shape)):
+                        check_row = row + distance * perp_dr
+                        check_col = col + distance * perp_dc
+                        check_pos = (check_row, check_col)
+                        
+                        if check_pos in targets:
+                            has_target_along_wall = True
+                            break
+                        
+                        # 如果遇到墙就停止
+                        if (check_row < 0 or check_row >= board.shape[0] or 
+                            check_col < 0 or check_col >= board.shape[1] or 
+                            board[check_row, check_col] == 1):
+                            break
+                
+                if not has_target_along_wall:
+                    return True
+        
+        return False
+    
+    def _calculate_clustering_penalty(self, boxes, targets):
+        """计算聚集惩罚"""
+        penalty = 0
+        incomplete_boxes = [box for box in boxes if box not in targets]
+        
+        for i, box1 in enumerate(incomplete_boxes):
+            for box2 in incomplete_boxes[i+1:]:
+                distance = abs(box1[0] - box2[0]) + abs(box1[1] - box2[1])
+                if distance == 1:  # 相邻的箱子
+                    penalty += 50
+                elif distance == 2:  # 很近的箱子
+                    penalty += 20
+        
+        return penalty

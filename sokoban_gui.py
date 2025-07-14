@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Dict, Any, List
 from games.sokoban import SokobanGame, SokobanEnv
 from agents import HumanAgent
 from agents.ai_bots.sokoban_ai import SokobanAI, SimpleSokobanAI
+from agents.ai_bots.llm_bot import LLMBot, AdvancedSokobanAI
 
 # 颜色定义
 COLORS = {
@@ -65,16 +66,19 @@ class SokobanGUI:
         self.game_mode = 'competitive'  # 'competitive' or 'cooperative'
         self.env = None
         self.human_agent = HumanAgent(name="Human Player", player_id=1)
-        self.ai_agent = SokobanAI(name="Sokoban AI", player_id=2)
+        self.ai_agent = SokobanAI(name="Search AI", player_id=2, max_search_time=2.0, use_dynamic_depth=True)
         self.current_agent = self.human_agent
         self.game_over = False
         self.winner = None
         self.thinking = False
         self.paused = False
-        self.selected_ai = "SokobanAI"
+        self.selected_ai = "SearchAI"  # 新增AI选项：SearchAI, SimpleAI, LLMAI, HybridAI
         
         # 先创建UI元素（需要在初始化游戏前创建）
         self.buttons = self._create_buttons()
+        
+        # 创建AI代理
+        self._create_ai_agent()
         
         # 初始化游戏
         self._init_game()
@@ -147,50 +151,60 @@ class SokobanGUI:
         start_x = 650  # 使用固定值，稍后会更新位置
         
         buttons = {
-            # AI选择
-            'sokoban_ai': {
-                'rect': pygame.Rect(start_x, 50, button_width, button_height),
-                'text': 'Smart AI',
+            # AI选择 - 扩展为四种AI
+            'search_ai': {
+                'rect': pygame.Rect(start_x, 30, button_width, button_height),
+                'text': 'Search AI',
                 'color': COLORS['YELLOW']
             },
+            'llm_ai': {
+                'rect': pygame.Rect(start_x, 65, button_width, button_height),
+                'text': 'LLM AI',
+                'color': COLORS['LIGHT_GRAY']
+            },
+            'hybrid_ai': {
+                'rect': pygame.Rect(start_x, 100, button_width, button_height),
+                'text': 'Hybrid AI',
+                'color': COLORS['LIGHT_GRAY']
+            },
             'simple_ai': {
-                'rect': pygame.Rect(start_x, 90, button_width, button_height),
+                'rect': pygame.Rect(start_x, 135, button_width, button_height),
                 'text': 'Simple AI',
                 'color': COLORS['LIGHT_GRAY']
             },
             
             # 游戏模式
             'competitive': {
-                'rect': pygame.Rect(start_x, 140, button_width, button_height),
+                'rect': pygame.Rect(start_x, 175, button_width, button_height),
                 'text': 'Competitive',
                 'color': COLORS['YELLOW']
             },
             'cooperative': {
-                'rect': pygame.Rect(start_x, 180, button_width, button_height),
+                'rect': pygame.Rect(start_x, 210, button_width, button_height),
                 'text': 'Cooperative',
                 'color': COLORS['LIGHT_GRAY']
             },
             
             # 关卡选择
             'level_prev': {
-                'rect': pygame.Rect(start_x, 230, 50, button_height),
+                'rect': pygame.Rect(start_x, 250, 50, button_height),
                 'text': '<',
                 'color': COLORS['CYAN']
             },
             'level_next': {
-                'rect': pygame.Rect(start_x + 70, 230, 50, button_height),
+                'rect': pygame.Rect(start_x + 70, 250, 50, button_height),
                 'text': '>',
                 'color': COLORS['CYAN']
             },
             
             # 控制按钮
             'new_game': {
-                'rect': pygame.Rect(start_x, 280, button_width, button_height),
+                'rect': pygame.Rect(start_x, 290, button_width, button_height),
                 'text': 'New Game',
                 'color': COLORS['GREEN']
             },
             'pause': {
-                'rect': pygame.Rect(start_x, 320, button_width, button_height),
+                'rect': pygame.Rect(start_x, 325, button_width, button_height),
                 'text': 'Pause',
                 'color': COLORS['ORANGE']
             },
@@ -210,9 +224,29 @@ class SokobanGUI:
     
     def _create_ai_agent(self):
         """创建AI智能体"""
-        if self.selected_ai == "SokobanAI":
-            self.ai_agent = SokobanAI(name="Smart AI", player_id=2)
-        elif self.selected_ai == "SimpleSokobanAI":
+        if self.selected_ai == "SearchAI":
+            self.ai_agent = SokobanAI(
+                name="Search AI", 
+                player_id=2,
+                max_search_time=2.0,
+                use_dynamic_depth=True,
+                cache_size=10000
+            )
+        elif self.selected_ai == "LLMAI":
+            self.ai_agent = LLMBot(
+                name="LLM AI", 
+                player_id=2,
+                use_local_simulation=True,
+                reasoning_depth=3
+            )
+        elif self.selected_ai == "HybridAI":
+            self.ai_agent = AdvancedSokobanAI(
+                name="Hybrid AI", 
+                player_id=2,
+                strategy='hybrid',
+                search_depth=3
+            )
+        elif self.selected_ai == "SimpleAI":
             self.ai_agent = SimpleSokobanAI(name="Simple AI", player_id=2)
     
     def reset_game(self):
@@ -264,15 +298,19 @@ class SokobanGUI:
                     self._change_level(-1)
                 elif button_name == 'level_next':
                     self._change_level(1)
-                elif button_name in ['sokoban_ai', 'simple_ai']:
+                elif button_name in ['search_ai', 'llm_ai', 'hybrid_ai', 'simple_ai']:
                     # 更新选中的AI
-                    for btn_name in ['sokoban_ai', 'simple_ai']:
+                    for btn_name in ['search_ai', 'llm_ai', 'hybrid_ai', 'simple_ai']:
                         self.buttons[btn_name]['color'] = COLORS['LIGHT_GRAY']
                     
-                    if button_name == 'sokoban_ai':
-                        self.selected_ai = "SokobanAI"
+                    if button_name == 'search_ai':
+                        self.selected_ai = "SearchAI"
+                    elif button_name == 'llm_ai':
+                        self.selected_ai = "LLMAI"
+                    elif button_name == 'hybrid_ai':
+                        self.selected_ai = "HybridAI"
                     elif button_name == 'simple_ai':
-                        self.selected_ai = "SimpleSokobanAI"
+                        self.selected_ai = "SimpleAI"
                     
                     self.buttons[button_name]['color'] = COLORS['YELLOW']
                     self._create_ai_agent()
@@ -522,13 +560,13 @@ class SokobanGUI:
         
         # 绘制标题
         ai_title_text = self.font_medium.render("AI Selection:", True, COLORS['BLACK'])
-        self.screen.blit(ai_title_text, (start_x, 25))
+        self.screen.blit(ai_title_text, (start_x, 5))
         
         mode_title_text = self.font_medium.render("Game Mode:", True, COLORS['BLACK'])
-        self.screen.blit(mode_title_text, (start_x, 115))
+        self.screen.blit(mode_title_text, (start_x, 150))
         
         level_title_text = self.font_medium.render(f"Level: {self.current_level}", True, COLORS['BLACK'])
-        self.screen.blit(level_title_text, (start_x, 205))
+        self.screen.blit(level_title_text, (start_x, 225))
         
         # 绘制操作说明
         instructions = [

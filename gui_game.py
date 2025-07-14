@@ -19,6 +19,7 @@ import config
 try:
     from games.sokoban import SokobanGame, SokobanEnv
     from agents.ai_bots.sokoban_ai import SokobanAI, SimpleSokobanAI
+    from agents.ai_bots.llm_bot import LLMBot, AdvancedSokobanAI
     SOKOBAN_AVAILABLE = True
 except ImportError:
     SOKOBAN_AVAILABLE = False
@@ -244,17 +245,41 @@ class MultiGameGUI:
             else:
                 # 对于贪吃蛇游戏，降级到通用Minimax
                 self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2, max_depth=3)
-        elif self.selected_ai == "SokobanAI" and SOKOBAN_AVAILABLE:
+        elif self.selected_ai == "SearchAI" and SOKOBAN_AVAILABLE:
             if self.current_game == "sokoban":
-                self.ai_agent = SokobanAI(name="Smart Sokoban AI", player_id=2)
+                self.ai_agent = SokobanAI(
+                    name="Search AI", 
+                    player_id=2,
+                    max_search_time=2.0,
+                    use_dynamic_depth=True,
+                    cache_size=10000
+                )
             else:
-                # 降级到随机AI
                 self.ai_agent = RandomBot(name="Random AI", player_id=2)
-        elif self.selected_ai == "SimpleSokobanAI" and SOKOBAN_AVAILABLE:
+        elif self.selected_ai == "LLMAI" and SOKOBAN_AVAILABLE:
             if self.current_game == "sokoban":
-                self.ai_agent = SimpleSokobanAI(name="Simple Sokoban AI", player_id=2)
+                self.ai_agent = LLMBot(
+                    name="LLM AI", 
+                    player_id=2,
+                    use_local_simulation=True,
+                    reasoning_depth=3
+                )
             else:
-                # 降级到随机AI
+                self.ai_agent = RandomBot(name="Random AI", player_id=2)
+        elif self.selected_ai == "HybridAI" and SOKOBAN_AVAILABLE:
+            if self.current_game == "sokoban":
+                self.ai_agent = AdvancedSokobanAI(
+                    name="Hybrid AI", 
+                    player_id=2,
+                    strategy='hybrid',
+                    search_depth=3
+                )
+            else:
+                self.ai_agent = RandomBot(name="Random AI", player_id=2)
+        elif self.selected_ai == "SimpleAI" and SOKOBAN_AVAILABLE:
+            if self.current_game == "sokoban":
+                self.ai_agent = SimpleSokobanAI(name="Simple AI", player_id=2)
+            else:
                 self.ai_agent = RandomBot(name="Random AI", player_id=2)
         elif self.selected_ai == "SearchBFS":
             # BFS搜索AI
@@ -350,7 +375,8 @@ class MultiGameGUI:
                     self._switch_game(game_type)
                 elif button_name.endswith("_ai") or button_name == "simple_sokoban_ai":
                     # 重置所有AI按钮颜色
-                    ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", "sokoban_ai", "simple_sokoban_ai",
+                    ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", 
+                                      "search_ai", "llm_ai", "hybrid_ai", "simple_sokoban_ai",
                                       "search_bfs_ai", "search_dfs_ai", "search_astar_ai"]
                     for ai_btn in ai_button_names:
                         if ai_btn in self.buttons:
@@ -365,10 +391,14 @@ class MultiGameGUI:
                         self.selected_ai = "MCTSBot"
                     elif button_name == "gomoku_ai":
                         self.selected_ai = "GomokuMinimaxBot"
-                    elif button_name == "sokoban_ai":
-                        self.selected_ai = "SokobanAI"
+                    elif button_name == "search_ai":
+                        self.selected_ai = "SearchAI"
+                    elif button_name == "llm_ai":
+                        self.selected_ai = "LLMAI"
+                    elif button_name == "hybrid_ai":
+                        self.selected_ai = "HybridAI"
                     elif button_name == "simple_sokoban_ai":
-                        self.selected_ai = "SimpleSokobanAI"
+                        self.selected_ai = "SimpleAI"
                     elif button_name == "search_bfs_ai":
                         self.selected_ai = "SearchBFS"
                     elif button_name == "search_dfs_ai":
@@ -437,8 +467,16 @@ class MultiGameGUI:
                 self.game_over = True
                 self.winner = self.env.get_winner()
             else:
-                # 切换玩家
-                self._switch_player()
+                # 对于推箱子游戏，同步当前代理与游戏的当前玩家
+                if self.current_game == "sokoban" and SOKOBAN_AVAILABLE:
+                    current_player = self.env.get_current_player()
+                    if current_player == 1:
+                        self.current_agent = self.human_agent
+                    else:
+                        self.current_agent = self.ai_agent
+                else:
+                    # 其他游戏保持原有的切换逻辑
+                    self._switch_player()
 
         except Exception as e:
             print(f"Move execution failed: {e}")
@@ -509,6 +547,21 @@ class MultiGameGUI:
 
         self.last_update = current_time
 
+        # 对于推箱子游戏，确保当前代理与游戏中的当前玩家同步
+        if self.current_game == "sokoban" and SOKOBAN_AVAILABLE and self.env:
+            current_player = self.env.get_current_player()
+            if current_player == 1:
+                expected_agent = self.human_agent
+            else:
+                expected_agent = self.ai_agent
+            
+            # 如果当前代理不匹配，进行同步
+            if self.current_agent != expected_agent:
+                self.current_agent = expected_agent
+                # 如果切换到AI，设置thinking状态
+                if not isinstance(self.current_agent, HumanAgent):
+                    self.thinking = True
+
         # AI回合
         if not isinstance(self.current_agent, HumanAgent) and self.thinking:
             try:
@@ -541,6 +594,26 @@ class MultiGameGUI:
                     
             except Exception as e:
                 print(f"Snake AI move failed: {e}")
+        
+        # 推箱子AI自动更新
+        elif (
+            self.current_game == "sokoban" and SOKOBAN_AVAILABLE
+            and not isinstance(self.current_agent, HumanAgent)  # 只有AI才自动移动
+            and not self.thinking
+        ):
+            # AI玩家自动移动
+            try:
+                self.thinking = True
+                observation = self.env._get_observation()
+                action = self.current_agent.get_action(observation, self.env)
+                
+                if action:
+                    self._make_move(action)
+                
+            except Exception as e:
+                print(f"Sokoban AI move failed: {e}")
+            finally:
+                self.thinking = False
         
         # 人类玩家需要通过键盘输入来控制蛇的移动，不在这里自动移动
 
@@ -920,7 +993,8 @@ class MultiGameGUI:
     def _update_ai_buttons(self):
         """根据当前游戏类型更新AI按钮"""
         # 移除所有现有的AI按钮
-        ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", "sokoban_ai", "simple_sokoban_ai",
+        ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", 
+                          "search_ai", "llm_ai", "hybrid_ai", "simple_sokoban_ai",
                           "search_bfs_ai", "search_dfs_ai", "search_astar_ai"]
         for btn_name in ai_button_names:
             if btn_name in self.buttons:
@@ -994,25 +1068,31 @@ class MultiGameGUI:
             
         elif self.current_game == "sokoban" and SOKOBAN_AVAILABLE:
             # 推箱子专用AI按钮
-            ai_buttons["sokoban_ai"] = {
+            ai_buttons["search_ai"] = {
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Smart AI",
-                "color": COLORS["YELLOW"] if self.selected_ai == "SokobanAI" else COLORS["LIGHT_GRAY"],
+                "text": "Search AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "SearchAI" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["llm_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "LLM AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "LLMAI" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["hybrid_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Hybrid AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "HybridAI" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
             
             ai_buttons["simple_sokoban_ai"] = {
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
                 "text": "Simple AI",
-                "color": COLORS["YELLOW"] if self.selected_ai == "SimpleSokobanAI" else COLORS["LIGHT_GRAY"],
-            }
-            y_offset += 40
-            
-            # 搜索AI按钮
-            ai_buttons["search_bfs_ai"] = {
-                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Search BFS",
-                "color": COLORS["YELLOW"] if self.selected_ai == "SearchBFS" else COLORS["LIGHT_GRAY"],
+                "color": COLORS["YELLOW"] if self.selected_ai == "SimpleAI" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
             
