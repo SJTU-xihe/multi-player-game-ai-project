@@ -197,7 +197,7 @@ class MultiGameGUI:
             self.cell_size = 30
             self.update_interval = 1.0  # 五子棋不需要频繁更新
             # 设置五子棋默认AI
-            if self.selected_ai not in ["GomokuMinimaxBot", "RandomBot", "SearchBFS", "SearchDFS", "SearchAStar"]:
+            if self.selected_ai not in ["GomokuMinimaxBot", "RandomBot"]:
                 self.selected_ai = "GomokuMinimaxBot"
         elif game_type == "snake":
             self.env = SnakeEnv(board_size=20)
@@ -1010,21 +1010,6 @@ class MultiGameGUI:
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
                 "text": "Gomoku AI",
                 "color": COLORS["YELLOW"] if self.selected_ai == "GomokuMinimaxBot" else COLORS["LIGHT_GRAY"],
-            }
-            y_offset += 40
-            
-            # 搜索AI按钮
-            ai_buttons["search_bfs_ai"] = {
-                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Search BFS",
-                "color": COLORS["YELLOW"] if self.selected_ai == "SearchBFS" else COLORS["LIGHT_GRAY"],
-            }
-            y_offset += 40
-            
-            ai_buttons["search_astar_ai"] = {
-                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Search A*",
-                "color": COLORS["YELLOW"] if self.selected_ai == "SearchAStar" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
             
