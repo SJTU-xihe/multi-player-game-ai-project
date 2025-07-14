@@ -130,6 +130,17 @@ class GomokuMinimaxBot(BaseAgent):
         # 智能动作排序：优先搜索有希望的位置
         sorted_actions = self._sort_actions(env.game, valid_actions)
         
+        # 检查是否应该优先进攻
+        should_attack = self._should_prioritize_attack(env.game)
+        if should_attack:
+            print("AI决定优先进攻!")
+            attack_moves = self._get_attack_moves(env.game)
+            if attack_moves:
+                # 将进攻动作放在前面
+                non_attack_moves = [a for a in sorted_actions if a not in attack_moves]
+                sorted_actions = attack_moves + non_attack_moves
+                print(f"找到{len(attack_moves)}个进攻位置: {attack_moves[:3]}...")
+        
         best_score = float('-inf')
         best_action = sorted_actions[0]
         
@@ -256,8 +267,23 @@ class GomokuMinimaxBot(BaseAgent):
         opponent_id = 3 - self.player_id  # 1->2, 2->1
         opponent_score = self._evaluate_player(game.board, opponent_id)
         
-        # 大幅提高防守权重，特别是对活三和活四的防守
-        defense_multiplier = 2.0
+        # 检查进攻机会：如果我有活三或冲四，提高进攻权重
+        my_threats = self._count_threats(game.board, self.player_id)
+        opponent_threats = self._count_threats(game.board, opponent_id)
+        
+        # 动态调整防守权重：有进攻机会时降低防守权重
+        if my_threats['live_three'] >= 1 or my_threats['rush_four'] >= 1:
+            # 有活三或冲四时，降低防守权重，提高进攻倾向
+            defense_multiplier = 1.2
+            attack_bonus = my_threats['live_three'] * 2000 + my_threats['rush_four'] * 5000
+            my_score += attack_bonus
+        elif opponent_threats['live_four'] > 0 or opponent_threats['rush_four'] > 0:
+            # 对手有强威胁时，提高防守权重
+            defense_multiplier = 2.5
+        else:
+            # 一般情况下的防守权重
+            defense_multiplier = 1.8
+        
         return my_score - opponent_score * defense_multiplier
     
     def _evaluate_player(self, board, player):
@@ -347,20 +373,20 @@ class GomokuMinimaxBot(BaseAgent):
         for pattern in rush_four_patterns:
             score += self._check_pattern(normalized_line, pattern, 1000)
         
-        # 活三模式
+        # 活三模式 - 提高权重，鼓励进攻
         live_three_patterns = [
             [0, 1, 1, 1, 0], [0, 1, 0, 1, 1, 0], [0, 1, 1, 0, 1, 0]
         ]
         for pattern in live_three_patterns:
-            score += self._check_pattern(normalized_line, pattern, 500)
+            score += self._check_pattern(normalized_line, pattern, 800)  # 从500提高到800
         
-        # 眠三模式
+        # 眠三模式 - 稍微提高权重
         sleep_three_patterns = [
             [1, 1, 1, 0, 0], [0, 0, 1, 1, 1], [1, 0, 1, 1, 0], 
             [0, 1, 1, 0, 1], [1, 0, 0, 1, 1], [1, 1, 0, 0, 1]
         ]
         for pattern in sleep_three_patterns:
-            score += self._check_pattern(normalized_line, pattern, 50)
+            score += self._check_pattern(normalized_line, pattern, 80)  # 从50提高到80
         
         # 活二模式
         live_two_patterns = [[0, 1, 1, 0], [0, 1, 0, 1, 0]]
@@ -413,14 +439,50 @@ class GomokuMinimaxBot(BaseAgent):
             if self._check_win_at_position(temp_board, row, col, opponent_id):
                 score += 90000  # 最高优先级：阻止对手获胜
             
-            # 3. 检查是否能阻止对手形成活四或冲四或活三 (大幅提高权重!)
-            if self._blocks_opponent_threat(game.board, row, col, opponent_id):
-                score += 70000  # 非常高的权重：阻止威胁
-                
-                # 调试输出
-                print(f"位置{action}可以阻挡对手威胁，得分+70000")
+            # 3. 检查是否能形成强力进攻组合 (新增) - 简化版本
+            temp_board = game.board.copy()
+            temp_board[row, col] = self.player_id
             
-            # 4. 计算附近棋子的影响
+            # 检查这个位置是否真的能形成有效威胁
+            actual_threat_formed = False
+            
+            # 检查四个方向是否能形成威胁
+            directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+            for dr, dc in directions:
+                # 检查这个方向的连线情况
+                line_length = self._count_consecutive_length(temp_board, row, col, dr, dc, self.player_id)
+                
+                if line_length >= 4:
+                    score += 60000  # 形成冲四
+                    actual_threat_formed = True
+                    print(f"位置{action}形成冲四(长度{line_length})，得分+60000")
+                    break
+                elif line_length == 3:
+                    # 检查是否是活三（两端都有空位）
+                    if self._is_live_three(temp_board, row, col, dr, dc, self.player_id):
+                        score += 40000  # 形成活三
+                        actual_threat_formed = True
+                        print(f"位置{action}形成活三，得分+40000")
+                        break
+            
+            # 4. 检查是否能阻止对手获胜 (保持原有逻辑但调整权重)
+            temp_board = game.board.copy()
+            temp_board[row, col] = opponent_id
+            if self._check_win_at_position(temp_board, row, col, opponent_id):
+                score += 90000  # 最高优先级：阻止对手获胜
+            
+            # 5. 检查是否能阻止对手形成活四或冲四或活三 (调整权重)
+            if self._blocks_opponent_threat(game.board, row, col, opponent_id):
+                # 根据我方是否有进攻机会调整防守权重
+                my_current_threats = self._count_threats(game.board, self.player_id)
+                if my_current_threats['live_three'] >= 1 or my_current_threats['rush_four'] >= 1:
+                    score += 30000  # 有进攻机会时降低防守权重
+                    print(f"位置{action}阻挡对手威胁(有进攻)，得分+30000")
+                else:
+                    score += 70000  # 无进攻机会时保持高防守权重
+                    print(f"位置{action}阻挡对手威胁(无进攻)，得分+70000")
+            
+            # 6. 计算附近棋子的影响
             neighbor_count = 0
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]:
@@ -432,13 +494,13 @@ class GomokuMinimaxBot(BaseAgent):
                         neighbor_count += 1
             score += neighbor_count * 1000
             
-            # 5. 计算连线潜力
+            # 7. 计算连线潜力
             temp_board = game.board.copy()
             temp_board[row, col] = self.player_id
             line_potential = self._calculate_line_potential(temp_board, row, col, self.player_id)
             score += line_potential * 100
             
-            # 6. 中心区域加分（但权重较低）
+            # 8. 中心区域加分（但权重较低）
             center = game.board_size // 2
             distance_to_center = abs(row - center) + abs(col - center)
             if neighbor_count == 0:
@@ -524,33 +586,33 @@ class GomokuMinimaxBot(BaseAgent):
         if target_idx < 0 or target_idx >= len(line):
             return False
         
-        # 标准化线段：对手棋子=1，空位=0，其他=-1
+        # 标准化线段：对手棋子=1，空位=0，自己的棋子=-1
         normalized = []
         for cell in line:
             if cell == player:
-                normalized.append(1)
+                normalized.append(-1)
             elif cell == 0:
                 normalized.append(0)
             else:
-                normalized.append(-1)
+                normalized.append(1)
         
         # 检查标准活三模式 [0,1,1,1,0]
         for i in range(len(normalized) - 4):
-            if normalized[i:i+5] == [0, 1, 1, 1, 0]:
+            if normalized[i:i+5] == [0, -1, -1, -1, 0]:
                 # 检查目标位置是否在活三的空位上
                 if target_idx == i or target_idx == i + 4:
                     return True
         
         # 检查跳跃活三模式 [0,1,0,1,1,0]
         for i in range(len(normalized) - 5):
-            if normalized[i:i+6] == [0, 1, 0, 1, 1, 0]:
+            if normalized[i:i+6] == [0, -1, 0, -1, -1, 0]:
                 # 检查目标位置是否在关键空位上
                 if target_idx == i or target_idx == i + 2 or target_idx == i + 5:
                     return True
         
         # 检查另一种跳跃活三 [0,1,1,0,1,0]
         for i in range(len(normalized) - 5):
-            if normalized[i:i+6] == [0, 1, 1, 0, 1, 0]:
+            if normalized[i:i+6] == [0, -1, -1, 0, -1, 0]:
                 if target_idx == i or target_idx == i + 3 or target_idx == i + 5:
                     return True
         
@@ -579,3 +641,179 @@ class GomokuMinimaxBot(BaseAgent):
     def _is_timeout(self):
         """检查是否超时"""
         return time.time() - self.start_time > self.timeout
+    
+    def _count_threats(self, board, player):
+        """计算玩家在棋盘上的威胁数量"""
+        threats = {
+            'five': 0,
+            'live_four': 0,
+            'rush_four': 0,
+            'live_three': 0,
+            'sleep_three': 0,
+            'live_two': 0
+        }
+        
+        board_size = board.shape[0]
+        directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+        
+        # 用集合避免重复计数
+        counted_patterns = set()
+        
+        # 检查每个方向的威胁
+        for row in range(board_size):
+            for col in range(board_size):
+                for dr, dc in directions:
+                    # 检查从当前位置开始的长线段
+                    line = self._get_line(board, row, col, dr, dc, 9)
+                    if len(line) >= 5:
+                        line_threats = self._count_line_threats_precise(line, player, row, col, dr, dc)
+                        for threat_type, positions in line_threats.items():
+                            for pos in positions:
+                                pattern_key = (threat_type, pos, dr, dc)
+                                if pattern_key not in counted_patterns:
+                                    threats[threat_type] += 1
+                                    counted_patterns.add(pattern_key)
+        
+        return threats
+    
+    def _count_line_threats_precise(self, line, player, start_row, start_col, dr, dc):
+        """精确计算线段中的威胁数量，返回威胁位置"""
+        threats = {
+            'five': [],
+            'live_four': [],
+            'rush_four': [],
+            'live_three': [],
+            'sleep_three': [],
+            'live_two': []
+        }
+        
+        opponent = 3 - player
+        
+        # 标准化线段
+        normalized_line = []
+        for cell in line:
+            if cell == player:
+                normalized_line.append(1)
+            elif cell == opponent:
+                normalized_line.append(-1)
+            elif cell == 0:
+                normalized_line.append(0)
+            else:
+                normalized_line.append(-1)
+        
+        # 检查各种威胁模式，并记录位置
+        self._find_pattern_positions(normalized_line, [1, 1, 1, 1, 1], threats['five'], start_row, start_col, dr, dc)
+        self._find_pattern_positions(normalized_line, [0, 1, 1, 1, 1, 0], threats['live_four'], start_row, start_col, dr, dc)
+        
+        # 冲四模式
+        rush_four_patterns = [
+            [1, 1, 1, 1, 0], [0, 1, 1, 1, 1], [1, 0, 1, 1, 1], 
+            [1, 1, 0, 1, 1], [1, 1, 1, 0, 1]
+        ]
+        for pattern in rush_four_patterns:
+            self._find_pattern_positions(normalized_line, pattern, threats['rush_four'], start_row, start_col, dr, dc)
+        
+        # 活三模式
+        live_three_patterns = [
+            [0, 1, 1, 1, 0], [0, 1, 0, 1, 1, 0], [0, 1, 1, 0, 1, 0]
+        ]
+        for pattern in live_three_patterns:
+            self._find_pattern_positions(normalized_line, pattern, threats['live_three'], start_row, start_col, dr, dc)
+        
+        return threats
+    
+    def _find_pattern_positions(self, line, pattern, result_list, start_row, start_col, dr, dc):
+        """在线段中查找模式并记录位置"""
+        pattern_len = len(pattern)
+        line_len = len(line)
+        
+        for i in range(line_len - pattern_len + 1):
+            if line[i:i + pattern_len] == pattern:
+                # 计算模式在棋盘上的实际位置
+                pattern_row = start_row + i * dr
+                pattern_col = start_col + i * dc
+                result_list.append((pattern_row, pattern_col))
+    
+    def _count_pattern_in_line(self, line, pattern):
+        """计算线段中特定模式的出现次数"""
+        count = 0
+        pattern_len = len(pattern)
+        line_len = len(line)
+        
+        for i in range(line_len - pattern_len + 1):
+            if line[i:i + pattern_len] == pattern:
+                count += 1
+        
+        return count
+    
+    def _should_prioritize_attack(self, game):
+        """判断是否应该优先进攻"""
+        my_threats = self._count_threats(game.board, self.player_id)
+        opponent_threats = self._count_threats(game.board, 3 - self.player_id)
+        
+        # 如果我有活三或冲四，应该优先进攻
+        if my_threats['live_three'] >= 1 or my_threats['rush_four'] >= 1:
+            # 除非对手有立即威胁
+            if opponent_threats['live_four'] == 0 and opponent_threats['rush_four'] <= 1:
+                return True
+        
+        # 如果我有双活三或活三+冲四组合，绝对优先进攻
+        if (my_threats['live_three'] >= 2 or 
+            (my_threats['live_three'] >= 1 and my_threats['rush_four'] >= 1)):
+            return True
+        
+        return False
+    
+    def _get_attack_moves(self, game):
+        """获取所有可能的进攻位置"""
+        attack_moves = []
+        valid_actions = game.get_valid_actions()
+        
+        for action in valid_actions:
+            row, col = action
+            temp_board = game.board.copy()
+            temp_board[row, col] = self.player_id
+            
+            # 检查这个位置是否能形成或扩展威胁
+            threats_after = self._count_threats(temp_board, self.player_id)
+            threats_before = self._count_threats(game.board, self.player_id)
+            
+            # 如果能形成新的威胁，这是一个进攻位置
+            if (threats_after['live_three'] > threats_before['live_three'] or
+                threats_after['rush_four'] > threats_before['rush_four'] or
+                threats_after['live_four'] > threats_before['live_four']):
+                attack_moves.append(action)
+        
+        return attack_moves
+    
+    def _is_live_three(self, board, row, col, dr, dc, player):
+        """检查指定位置和方向是否形成活三"""
+        board_size = board.shape[0]
+        
+        # 找到连续棋子的范围
+        start_r, start_c = row, col
+        end_r, end_c = row, col
+        
+        # 向前扩展
+        while (0 <= start_r - dr < board_size and 0 <= start_c - dc < board_size and
+               board[start_r - dr, start_c - dc] == player):
+            start_r -= dr
+            start_c -= dc
+        
+        # 向后扩展
+        while (0 <= end_r + dr < board_size and 0 <= end_c + dc < board_size and
+               board[end_r + dr, end_c + dc] == player):
+            end_r += dr
+            end_c += dc
+        
+        # 检查连续长度是否为3
+        if abs(end_r - start_r) + abs(end_c - start_c) == 2 * abs(dr + dc):
+            # 检查两端是否都是空位
+            front_empty = (0 <= start_r - dr < board_size and 0 <= start_c - dc < board_size and
+                          board[start_r - dr, start_c - dc] == 0)
+            back_empty = (0 <= end_r + dr < board_size and 0 <= end_c + dc < board_size and
+                         board[end_r + dr, end_c + dc] == 0)
+            
+            return front_empty and back_empty
+        
+        return False
