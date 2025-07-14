@@ -9,7 +9,7 @@ import time
 import os
 from typing import Optional, Tuple, Dict, Any
 from games.snake import SnakeGame, SnakeEnv
-from agents import RandomBot, SnakeAI, SmartSnakeAI, HumanAgent
+from agents import RandomBot, MinimaxBot, MCTSBot, SnakeAI, SmartSnakeAI, HumanAgent
 
 # 颜色定义
 COLORS = {
@@ -57,7 +57,7 @@ class SnakeGUI:
         self.game_over = False
         self.winner = None
         self.thinking = False
-        self.selected_ai = "SnakeAI"
+        self.selected_ai = "MinimaxBot"
         self.paused = False
         
         # UI元素
@@ -77,14 +77,14 @@ class SnakeGUI:
         
         buttons = {
             # AI选择
-            'snake_ai': {
+            'minimax_ai': {
                 'rect': pygame.Rect(start_x, 50, button_width, button_height),
-                'text': 'Basic AI',
+                'text': 'Minimax AI',
                 'color': COLORS['YELLOW']
             },
-            'smart_ai': {
+            'mcts_ai': {
                 'rect': pygame.Rect(start_x, 90, button_width, button_height),
-                'text': 'Smart AI',
+                'text': 'MCTS AI',
                 'color': COLORS['LIGHT_GRAY']
             },
             'random_ai': {
@@ -115,10 +115,10 @@ class SnakeGUI:
     
     def _create_ai_agent(self):
         """创建AI智能体"""
-        if self.selected_ai == "SnakeAI":
-            self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
-        elif self.selected_ai == "SmartSnakeAI":
-            self.ai_agent = SmartSnakeAI(name="Smart AI", player_id=2)
+        if self.selected_ai == "MinimaxBot":
+            self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2)
+        elif self.selected_ai == "MCTSBot":
+            self.ai_agent = MCTSBot(name="MCTS AI", player_id=2)
         elif self.selected_ai == "RandomBot":
             self.ai_agent = RandomBot(name="Random AI", player_id=2)
     
@@ -167,13 +167,13 @@ class SnakeGUI:
                     self.buttons['pause']['text'] = 'Resume' if self.paused else 'Pause'
                 elif button_name.endswith('_ai'):
                     # 更新选中的AI
-                    for btn_name in ['snake_ai', 'smart_ai', 'random_ai']:
+                    for btn_name in ['minimax_ai', 'mcts_ai', 'random_ai']:
                         self.buttons[btn_name]['color'] = COLORS['LIGHT_GRAY']
                     
-                    if button_name == 'snake_ai':
-                        self.selected_ai = "SnakeAI"
-                    elif button_name == 'smart_ai':
-                        self.selected_ai = "SmartSnakeAI"
+                    if button_name == 'minimax_ai':
+                        self.selected_ai = "MinimaxBot"
+                    elif button_name == 'mcts_ai':
+                        self.selected_ai = "MCTSBot"
                     elif button_name == 'random_ai':
                         self.selected_ai = "RandomBot"
                     

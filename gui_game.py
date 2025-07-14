@@ -228,14 +228,14 @@ class MultiGameGUI:
             if self.current_game == "gomoku":
                 self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2, max_depth=3)
             else:
-                self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
+                self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2, max_depth=3)
         elif self.selected_ai == "MCTSBot":
             if self.current_game == "gomoku":
                 self.ai_agent = MCTSBot(
                     name="MCTS AI", player_id=2, simulation_count=300
                 )
             else:
-                self.ai_agent = SmartSnakeAI(name="Smart Snake AI", player_id=2)
+                self.ai_agent = MCTSBot(name="MCTS AI", player_id=2, simulation_count=300)
         elif self.selected_ai == "GomokuMinimaxBot":
             if self.current_game == "gomoku":
                 self.ai_agent = GomokuMinimaxBot(
@@ -243,7 +243,7 @@ class MultiGameGUI:
                 )
             else:
                 # 对于贪吃蛇游戏，降级到通用Minimax
-                self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
+                self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2, max_depth=3)
         elif self.selected_ai == "SokobanAI" and SOKOBAN_AVAILABLE:
             if self.current_game == "sokoban":
                 self.ai_agent = SokobanAI(name="Smart Sokoban AI", player_id=2)
@@ -958,14 +958,14 @@ class MultiGameGUI:
             # 贪吃蛇专用AI按钮
             ai_buttons["minimax_ai"] = {
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Snake AI",
+                "text": "Minimax AI",
                 "color": COLORS["YELLOW"] if self.selected_ai == "MinimaxBot" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
             
             ai_buttons["mcts_ai"] = {
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
-                "text": "Smart Snake AI",
+                "text": "MCTS AI",
                 "color": COLORS["YELLOW"] if self.selected_ai == "MCTSBot" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
