@@ -34,11 +34,11 @@ class GomokuMinimaxBot(BaseAgent):
                 {'pattern': [1, 1, 1, 0, 1], 'score': 1000},
             ],
             
-            # 活三
+            # 活三 - 提高分值，因为活三能形成双威胁
             'live_three': [
-                {'pattern': [0, 1, 1, 1, 0], 'score': 500},
-                {'pattern': [0, 1, 0, 1, 1, 0], 'score': 500},
-                {'pattern': [0, 1, 1, 0, 1, 0], 'score': 500},
+                {'pattern': [0, 1, 1, 1, 0], 'score': 1500},  # 提高活三权重
+                {'pattern': [0, 1, 0, 1, 1, 0], 'score': 1500},
+                {'pattern': [0, 1, 1, 0, 1, 0], 'score': 1500},
             ],
             
             # 眠三
@@ -274,8 +274,9 @@ class GomokuMinimaxBot(BaseAgent):
         # 动态调整防守权重：有进攻机会时降低防守权重
         if my_threats['live_three'] >= 1 or my_threats['rush_four'] >= 1:
             # 有活三或冲四时，降低防守权重，提高进攻倾向
+            # 活三比冲四有更高的进攻价值，因为能形成双威胁
             defense_multiplier = 1.2
-            attack_bonus = my_threats['live_three'] * 2000 + my_threats['rush_four'] * 5000
+            attack_bonus = my_threats['live_three'] * 3000 + my_threats['rush_four'] * 2000  # 活三奖励更高
             my_score += attack_bonus
         elif opponent_threats['live_four'] > 0 or opponent_threats['rush_four'] > 0:
             # 对手有强威胁时，提高防守权重
@@ -373,12 +374,12 @@ class GomokuMinimaxBot(BaseAgent):
         for pattern in rush_four_patterns:
             score += self._check_pattern(normalized_line, pattern, 1000)
         
-        # 活三模式 - 提高权重，鼓励进攻
+        # 活三模式 - 提高权重，鼓励进攻，活三比冲四更有价值
         live_three_patterns = [
             [0, 1, 1, 1, 0], [0, 1, 0, 1, 1, 0], [0, 1, 1, 0, 1, 0]
         ]
         for pattern in live_three_patterns:
-            score += self._check_pattern(normalized_line, pattern, 800)  # 从500提高到800
+            score += self._check_pattern(normalized_line, pattern, 1200)  # 提高到1200，超过冲四的1000
         
         # 眠三模式 - 稍微提高权重
         sleep_three_patterns = [
@@ -439,12 +440,13 @@ class GomokuMinimaxBot(BaseAgent):
             if self._check_win_at_position(temp_board, row, col, opponent_id):
                 score += 90000  # 最高优先级：阻止对手获胜
             
-            # 3. 检查是否能形成强力进攻组合 (新增) - 简化版本
+            # 3. 检查是否能形成强力进攻组合 - 优先活四over冲四
             temp_board = game.board.copy()
             temp_board[row, col] = self.player_id
             
             # 检查这个位置是否真的能形成有效威胁
             actual_threat_formed = False
+            live_four_formed = False
             
             # 检查四个方向是否能形成威胁
             directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
@@ -453,16 +455,23 @@ class GomokuMinimaxBot(BaseAgent):
                 line_length = self._count_consecutive_length(temp_board, row, col, dr, dc, self.player_id)
                 
                 if line_length >= 4:
-                    score += 60000  # 形成冲四
-                    actual_threat_formed = True
-                    print(f"位置{action}形成冲四(长度{line_length})，得分+60000")
-                    break
+                    # 检查是否能形成活四（比冲四更重要）
+                    if self._can_form_live_four(temp_board, row, col, dr, dc, self.player_id):
+                        score += 80000  # 形成活四的优先级最高
+                        live_four_formed = True
+                        actual_threat_formed = True
+                        print(f"位置{action}形成活四，得分+80000")
+                        break
+                    else:
+                        score += 50000  # 形成冲四
+                        actual_threat_formed = True
+                        print(f"位置{action}形成冲四(长度{line_length})，得分+50000")
                 elif line_length == 3:
                     # 检查是否是活三（两端都有空位）
                     if self._is_live_three(temp_board, row, col, dr, dc, self.player_id):
-                        score += 40000  # 形成活三
+                        score += 70000  # 活三价值很高，因为下一步能形成双威胁
                         actual_threat_formed = True
-                        print(f"位置{action}形成活三，得分+40000")
+                        print(f"位置{action}形成活三，得分+70000")
                         break
             
             # 4. 检查是否能阻止对手获胜 (保持原有逻辑但调整权重)
@@ -814,6 +823,44 @@ class GomokuMinimaxBot(BaseAgent):
             back_empty = (0 <= end_r + dr < board_size and 0 <= end_c + dc < board_size and
                          board[end_r + dr, end_c + dc] == 0)
             
+            return front_empty and back_empty
+        
+        return False
+    
+    def _can_form_live_four(self, board, row, col, dr, dc, player):
+        """检查指定位置和方向是否能形成活四"""
+        board_size = board.shape[0]
+        
+        # 找到连续棋子的范围
+        start_r, start_c = row, col
+        end_r, end_c = row, col
+        
+        # 向前扩展
+        while (0 <= start_r - dr < board_size and 0 <= start_c - dc < board_size and
+               board[start_r - dr, start_c - dc] == player):
+            start_r -= dr
+            start_c -= dc
+        
+        # 向后扩展
+        while (0 <= end_r + dr < board_size and 0 <= end_c + dc < board_size and
+               board[end_r + dr, end_c + dc] == player):
+            end_r += dr
+            end_c += dc
+        
+        # 计算连续长度
+        if dr == 0:  # 水平方向
+            length = abs(end_c - start_c) + 1
+        elif dc == 0:  # 垂直方向
+            length = abs(end_r - start_r) + 1
+        else:  # 对角线方向
+            length = abs(end_r - start_r) + 1
+        
+        # 检查连续长度是否为4，且两端都是空位
+        if length == 4:
+            front_empty = (0 <= start_r - dr < board_size and 0 <= start_c - dc < board_size and
+                          board[start_r - dr, start_c - dc] == 0)
+            back_empty = (0 <= end_r + dr < board_size and 0 <= end_c + dc < board_size and
+                         board[end_r + dr, end_c + dc] == 0)
             return front_empty and back_empty
         
         return False
