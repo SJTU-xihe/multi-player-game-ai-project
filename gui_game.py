@@ -203,9 +203,8 @@ class MultiGameGUI:
             self.env = SnakeEnv(board_size=20)
             self.cell_size = 25
             self.update_interval = 0.3  # 贪吃蛇需要频繁更新
-            # 设置贪吃蛇默认AI
-            if self.selected_ai not in ["MinimaxBot", "MCTSBot", "RandomBot", "SearchBFS", "SearchDFS", "SearchAStar"]:
-                self.selected_ai = "MinimaxBot"
+            # 强制设置贪吃蛇默认AI为SnakeAI（与专用GUI一致）
+            self.selected_ai = "SnakeAI"
         elif game_type == "sokoban" and SOKOBAN_AVAILABLE:
             self.env = SokobanEnv(level_id=self.current_level, game_mode='competitive')
             self.cell_size = 40
@@ -225,6 +224,12 @@ class MultiGameGUI:
         """创建AI智能体"""
         if self.selected_ai == "RandomBot":
             self.ai_agent = RandomBot(name="Random AI", player_id=2)
+        elif self.selected_ai == "SnakeAI":
+            # 贪吃蛇专用AI
+            self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
+        elif self.selected_ai == "SmartSnakeAI":
+            # 智能贪吃蛇AI
+            self.ai_agent = SmartSnakeAI(name="Smart Snake AI", player_id=2)
         elif self.selected_ai == "MinimaxBot":
             if self.current_game == "gomoku":
                 self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2, max_depth=3)
@@ -377,7 +382,8 @@ class MultiGameGUI:
                     # 重置所有AI按钮颜色
                     ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", 
                                       "search_ai", "llm_ai", "hybrid_ai", "simple_sokoban_ai",
-                                      "search_bfs_ai", "search_dfs_ai", "search_astar_ai"]
+                                      "search_bfs_ai", "search_dfs_ai", "search_astar_ai",
+                                      "snake_ai", "smart_snake_ai"]
                     for ai_btn in ai_button_names:
                         if ai_btn in self.buttons:
                             self.buttons[ai_btn]["color"] = COLORS["LIGHT_GRAY"]
@@ -385,6 +391,10 @@ class MultiGameGUI:
                     # 设置新的AI
                     if button_name == "random_ai":
                         self.selected_ai = "RandomBot"
+                    elif button_name == "snake_ai":
+                        self.selected_ai = "SnakeAI"
+                    elif button_name == "smart_snake_ai":
+                        self.selected_ai = "SmartSnakeAI"
                     elif button_name == "minimax_ai":
                         self.selected_ai = "MinimaxBot"
                     elif button_name == "mcts_ai":
@@ -995,7 +1005,8 @@ class MultiGameGUI:
         # 移除所有现有的AI按钮
         ai_button_names = ["random_ai", "minimax_ai", "mcts_ai", "gomoku_ai", 
                           "search_ai", "llm_ai", "hybrid_ai", "simple_sokoban_ai",
-                          "search_bfs_ai", "search_dfs_ai", "search_astar_ai"]
+                          "search_bfs_ai", "search_dfs_ai", "search_astar_ai",
+                          "snake_ai", "smart_snake_ai"]
         for btn_name in ai_button_names:
             if btn_name in self.buttons:
                 del self.buttons[btn_name]
@@ -1013,8 +1024,6 @@ class MultiGameGUI:
             }
             y_offset += 40
             
-        elif self.current_game == "snake":
-            # 贪吃蛇专用AI按钮
             ai_buttons["minimax_ai"] = {
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
                 "text": "Minimax AI",
@@ -1026,6 +1035,50 @@ class MultiGameGUI:
                 "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
                 "text": "MCTS AI",
                 "color": COLORS["YELLOW"] if self.selected_ai == "MCTSBot" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["random_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Random AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "RandomBot" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+        elif self.current_game == "snake":
+            # 贪吃蛇专用AI按钮
+            ai_buttons["snake_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Snake AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "SnakeAI" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["smart_snake_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Smart Snake",
+                "color": COLORS["YELLOW"] if self.selected_ai == "SmartSnakeAI" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["minimax_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Minimax AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "MinimaxBot" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["mcts_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "MCTS AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "MCTSBot" else COLORS["LIGHT_GRAY"],
+            }
+            y_offset += 40
+            
+            ai_buttons["random_ai"] = {
+                "rect": pygame.Rect(self.start_x, self.ai_start_y + y_offset, self.button_width, self.button_height),
+                "text": "Random AI",
+                "color": COLORS["YELLOW"] if self.selected_ai == "RandomBot" else COLORS["LIGHT_GRAY"],
             }
             y_offset += 40
             

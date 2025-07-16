@@ -607,11 +607,23 @@ class SokobanGUI:
                 status_text = "AI Wins!"
                 color = COLORS['RED']
             elif self.winner == 0:
-                status_text = "Draw!" if self.game_mode == 'competitive' else "Success!"
-                color = COLORS['ORANGE'] if self.game_mode == 'competitive' else COLORS['GREEN']
+                if self.game_mode == 'competitive':
+                    status_text = "Draw!"
+                    color = COLORS['ORANGE']
+                else:
+                    status_text = "Success!"
+                    color = COLORS['GREEN']
             else:
-                status_text = "Game Over"
-                color = COLORS['GRAY']
+                # 检查失败原因
+                if self.env.game._check_deadlock():
+                    status_text = "Deadlock - Game Over"
+                    color = COLORS['RED']
+                elif self.env.game.is_timeout() or self.env.game.move_count >= self.env.game.max_steps:
+                    status_text = "Time/Steps Limit - Game Over"
+                    color = COLORS['ORANGE']
+                else:
+                    status_text = "Game Over"
+                    color = COLORS['GRAY']
         else:
             current_player = self.env.get_current_player()
             if current_player == 1:
@@ -649,6 +661,30 @@ class SokobanGUI:
             
             info_surface4 = self.font_small.render(steps_text, True, COLORS['DARK_GRAY'])
             self.screen.blit(info_surface4, (start_x, info_y + 60))
+            
+            # 显示额外的游戏状态信息
+            if self.game_over:
+                additional_info_y = info_y + 90
+                
+                # 显示结束原因
+                if len(state['boxes_on_targets']) == len(state['targets']):
+                    end_reason = "All boxes on targets!"
+                    reason_color = COLORS['GREEN']
+                elif self.env.game._check_deadlock():
+                    end_reason = "Deadlock detected!"
+                    reason_color = COLORS['RED']
+                elif self.env.game.move_count >= self.env.game.max_steps:
+                    end_reason = f"Max steps reached ({self.env.game.max_steps})"
+                    reason_color = COLORS['ORANGE']
+                elif self.env.game.is_timeout():
+                    end_reason = "Time limit exceeded"
+                    reason_color = COLORS['ORANGE']
+                else:
+                    end_reason = "Game ended"
+                    reason_color = COLORS['GRAY']
+                
+                reason_surface = self.font_small.render(end_reason, True, reason_color)
+                self.screen.blit(reason_surface, (start_x, additional_info_y))
     
     def run(self):
         """运行游戏主循环"""

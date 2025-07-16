@@ -52,16 +52,20 @@ class SnakeGUI:
         # 游戏状态
         self.env = SnakeEnv(board_size=self.board_size)
         self.human_agent = HumanAgent(name="Human Player", player_id=1)
-        self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
+        # 初始化为None，稍后通过_create_ai_agent创建
+        self.ai_agent = None
         self.current_agent = self.human_agent
         self.game_over = False
         self.winner = None
         self.thinking = False
-        self.selected_ai = "MinimaxBot"
+        self.selected_ai = "SnakeAI"  # 默认使用SnakeAI
         self.paused = False
         
         # UI元素
         self.buttons = self._create_buttons()
+        
+        # 创建AI智能体
+        self._create_ai_agent()
         
         # 游戏计时
         self.last_update = time.time()
@@ -77,35 +81,45 @@ class SnakeGUI:
         
         buttons = {
             # AI选择
-            'minimax_ai': {
+            'snake_ai': {
                 'rect': pygame.Rect(start_x, 50, button_width, button_height),
+                'text': 'Snake AI',
+                'color': COLORS['YELLOW']  # 默认选中
+            },
+            'smart_snake_ai': {
+                'rect': pygame.Rect(start_x, 90, button_width, button_height),
+                'text': 'Smart Snake',
+                'color': COLORS['LIGHT_GRAY']
+            },
+            'minimax_ai': {
+                'rect': pygame.Rect(start_x, 130, button_width, button_height),
                 'text': 'Minimax AI',
-                'color': COLORS['YELLOW']
+                'color': COLORS['LIGHT_GRAY']
             },
             'mcts_ai': {
-                'rect': pygame.Rect(start_x, 90, button_width, button_height),
+                'rect': pygame.Rect(start_x, 170, button_width, button_height),
                 'text': 'MCTS AI',
                 'color': COLORS['LIGHT_GRAY']
             },
             'random_ai': {
-                'rect': pygame.Rect(start_x, 130, button_width, button_height),
+                'rect': pygame.Rect(start_x, 210, button_width, button_height),
                 'text': 'Random AI',
                 'color': COLORS['LIGHT_GRAY']
             },
             
             # 控制按钮
             'new_game': {
-                'rect': pygame.Rect(start_x, 190, button_width, button_height),
+                'rect': pygame.Rect(start_x, 270, button_width, button_height),
                 'text': 'New Game',
                 'color': COLORS['GREEN']
             },
             'pause': {
-                'rect': pygame.Rect(start_x, 230, button_width, button_height),
+                'rect': pygame.Rect(start_x, 310, button_width, button_height),
                 'text': 'Pause',
                 'color': COLORS['ORANGE']
             },
             'quit': {
-                'rect': pygame.Rect(start_x, 270, button_width, button_height),
+                'rect': pygame.Rect(start_x, 350, button_width, button_height),
                 'text': 'Quit',
                 'color': COLORS['RED']
             }
@@ -115,12 +129,19 @@ class SnakeGUI:
     
     def _create_ai_agent(self):
         """创建AI智能体"""
-        if self.selected_ai == "MinimaxBot":
+        if self.selected_ai == "SnakeAI":
+            self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
+        elif self.selected_ai == "SmartSnakeAI":
+            self.ai_agent = SmartSnakeAI(name="Smart Snake AI", player_id=2)
+        elif self.selected_ai == "MinimaxBot":
             self.ai_agent = MinimaxBot(name="Minimax AI", player_id=2)
         elif self.selected_ai == "MCTSBot":
             self.ai_agent = MCTSBot(name="MCTS AI", player_id=2)
         elif self.selected_ai == "RandomBot":
             self.ai_agent = RandomBot(name="Random AI", player_id=2)
+        else:
+            # 默认使用SnakeAI
+            self.ai_agent = SnakeAI(name="Snake AI", player_id=2)
     
     def reset_game(self):
         """重置游戏"""
@@ -167,10 +188,15 @@ class SnakeGUI:
                     self.buttons['pause']['text'] = 'Resume' if self.paused else 'Pause'
                 elif button_name.endswith('_ai'):
                     # 更新选中的AI
-                    for btn_name in ['minimax_ai', 'mcts_ai', 'random_ai']:
-                        self.buttons[btn_name]['color'] = COLORS['LIGHT_GRAY']
+                    for btn_name in ['snake_ai', 'smart_snake_ai', 'minimax_ai', 'mcts_ai', 'random_ai']:
+                        if btn_name in self.buttons:
+                            self.buttons[btn_name]['color'] = COLORS['LIGHT_GRAY']
                     
-                    if button_name == 'minimax_ai':
+                    if button_name == 'snake_ai':
+                        self.selected_ai = "SnakeAI"
+                    elif button_name == 'smart_snake_ai':
+                        self.selected_ai = "SmartSnakeAI"
+                    elif button_name == 'minimax_ai':
                         self.selected_ai = "MinimaxBot"
                     elif button_name == 'mcts_ai':
                         self.selected_ai = "MCTSBot"

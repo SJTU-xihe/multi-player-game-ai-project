@@ -114,7 +114,7 @@ class SokobanEnv(BaseEnv):
             info['invalid_action'] = True
             return observation, -0.5, False, False, info
         # 执行动作
-        _, reward, terminated, game_info = self.game.step(action)
+        _, reward, done, game_info = self.game.step(action)
         
         # 获取新的观察
         observation = self._get_observation()
@@ -123,8 +123,13 @@ class SokobanEnv(BaseEnv):
         if self.reward_shaping:
             reward = self._calculate_shaped_reward(reward, game_info)
         
-        # 检查是否截断（达到最大步数）
+        # 区分终止和截断
+        terminated = done and self.game.is_terminal()
         truncated = self.game.move_count >= self.max_episode_steps
+        
+        # 如果因为步数限制而结束，这是截断而不是终止
+        if truncated:
+            terminated = False
         
         # 组合信息
         info = self._get_info()

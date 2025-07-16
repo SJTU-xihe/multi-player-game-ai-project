@@ -486,8 +486,12 @@ class SokobanGame(BaseGame):
     
     def is_terminal(self) -> bool:
         """检查游戏是否结束"""
-        # 检查是否所有箱子都在目标上
+        # 检查是否所有箱子都在目标上（胜利条件）
         if len(self.boxes_on_targets) == len(self.targets):
+            return True
+        
+        # 检查是否有箱子陷入死锁（失败条件）
+        if self._check_deadlock():
             return True
         
         # 检查是否超时
@@ -500,25 +504,132 @@ class SokobanGame(BaseGame):
         
         return False
     
+    def _check_deadlock(self) -> bool:
+        """检查是否存在死锁情况"""
+        # 检查每个不在目标上的箱子
+        for box_pos in self.boxes:
+            if box_pos not in self.targets:
+                if self._is_box_deadlocked(box_pos):
+                    return True
+        return False
+    
+    def _is_box_deadlocked(self, box_pos: Tuple[int, int]) -> bool:
+        """检查单个箱子是否死锁"""
+        row, col = box_pos
+        
+        # 检查角落死锁
+        if self._is_corner_deadlock(row, col):
+            return True
+        
+        # 检查边缘死锁
+        if self._is_edge_deadlock(row, col):
+            return True
+        
+        return False
+    
+    def _is_corner_deadlock(self, row: int, col: int) -> bool:
+        """检查角落死锁"""
+        # 检查四个方向的墙壁情况
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 上下左右
+        wall_count = 0
+        
+        for dr, dc in directions:
+            new_row, new_col = row + dr, col + dc
+            if (not self._is_valid_position(new_row, new_col) or 
+                self.board[new_row][new_col] == self.WALL):
+                wall_count += 1
+        
+        # 如果被两面或更多面墙围住，且这些墙形成角落，则死锁
+        if wall_count >= 2:
+            # 检查是否真的形成角落（检查相邻的两面墙）
+            wall_positions = []
+            for dr, dc in directions:
+                new_row, new_col = row + dr, col + dc
+                if (not self._is_valid_position(new_row, new_col) or 
+                    self.board[new_row][new_col] == self.WALL):
+                    wall_positions.append((dr, dc))
+            
+            # 检查是否有相邻的墙壁形成角落
+            for i, (dr1, dc1) in enumerate(wall_positions):
+                for j, (dr2, dc2) in enumerate(wall_positions):
+                    if i != j:
+                        # 如果两个方向垂直，则形成角落
+                        if (dr1 * dr2 == 0 and dc1 * dc2 == 0 and 
+                            (dr1 != 0 or dc1 != 0) and (dr2 != 0 or dc2 != 0)):
+                            return True
+        
+        return False
+    
+    def _is_edge_deadlock(self, row: int, col: int) -> bool:
+        """检查边缘死锁（简化版）"""
+        # 检查是否在靠墙的位置且无法推向目标
+        # 这里使用简化的检查逻辑
+        
+        # 检查水平方向是否被阻挡
+        left_blocked = (not self._is_valid_position(row, col - 1) or 
+                       self.board[row][col - 1] == self.WALL or
+                       (row, col - 1) in self.boxes)
+        right_blocked = (not self._is_valid_position(row, col + 1) or 
+                        self.board[row][col + 1] == self.WALL or
+                        (row, col + 1) in self.boxes)
+        
+        # 检查垂直方向是否被阻挡
+        up_blocked = (not self._is_valid_position(row - 1, col) or 
+                     self.board[row - 1][col] == self.WALL or
+                     (row - 1, col) in self.boxes)
+        down_blocked = (not self._is_valid_position(row + 1, col) or 
+                       self.board[row + 1][col] == self.WALL or
+                       (row + 1, col) in self.boxes)
+        
+        # 如果水平和垂直方向都被完全阻挡，则可能死锁
+        horizontal_blocked = left_blocked and right_blocked
+        vertical_blocked = up_blocked and down_blocked
+        
+        return horizontal_blocked or vertical_blocked
+
     def get_winner(self) -> Optional[int]:
         """获取获胜者"""
         if not self.is_terminal():
             return None
         
-        if self.game_mode == 'cooperative':
-            # 合作模式：都获胜或都失败
-            if len(self.boxes_on_targets) == len(self.targets):
-                return 0  # 平局（共同获胜）
+        # 首先检查是否完成所有目标（正常胜利）
+        if len(self.boxes_on_targets) == len(self.targets):
+            if self.game_mode == 'cooperative':
+                return 0  # 合作模式：共同获胜
             else:
-                return None  # 共同失败
-        else:
-            # 竞争模式：比较分数
-            if self.player1_score > self.player2_score:
-                return 1
-            elif self.player2_score > self.player1_score:
-                return 2
+                # 竞争模式：比较分数
+                if self.player1_score > self.player2_score:
+                    return 1
+                elif self.player2_score > self.player1_score:
+                    return 2
+                else:
+                    return 0  # 平局
+        
+        # 检查是否因为死锁而失败
+        if self._check_deadlock():
+            if self.game_mode == 'cooperative':
+                return None  # 合作模式：共同失败
             else:
-                return 0  # 平局
+                # 竞争模式：当前回合的玩家失败，对手获胜
+                if self.current_player == 1:
+                    return 2  # 玩家1死锁，玩家2获胜
+                else:
+                    return 1  # 玩家2死锁，玩家1获胜
+        
+        # 检查是否超时或达到步数限制
+        if self.is_timeout() or self.move_count >= self.max_steps:
+            if self.game_mode == 'cooperative':
+                return None  # 合作模式：共同失败
+            else:
+                # 竞争模式：比较当前分数
+                if self.player1_score > self.player2_score:
+                    return 1
+                elif self.player2_score > self.player1_score:
+                    return 2
+                else:
+                    return 0  # 平局
+        
+        return None
     
     def get_state(self) -> Dict[str, Any]:
         """获取当前游戏状态"""
